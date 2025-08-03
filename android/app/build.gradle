@@ -71,6 +71,36 @@ def enableProguardInReleaseBuilds = false
  * this variant is about 6MiB larger per architecture than default.
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
+project.ext.envConfigFiles = [".env","debug.env", "release.env"]
+project.ext.env = [:]
+
+def loadEnvFile = { File file ->
+    if (!file.exists()) return
+    file.eachLine { line ->
+        if (!line.trim().isEmpty() && !line.trim().startsWith('#') && line.contains('=')) {
+            def parts = line.split('=', 2)
+            if (parts.length == 2) {
+                def key = parts[0].trim()
+                def value = parts[1].trim()
+                project.ext.env.put(key, value)
+            }
+        }
+    }
+}
+
+def isEnvFileFound = false
+project.ext.envConfigFiles.each { filename ->
+    def envFile = rootProject.file(filename)
+    if (envFile.exists()) {
+        loadEnvFile(envFile)
+        isEnvFileFound = true
+    }
+}
+
+if (!isEnvFileFound) {
+    def fallbackEnvFile = rootProject.file(".env")
+    loadEnvFile(fallbackEnvFile)
+}
 
 android {
     ndkVersion rootProject.ext.ndkVersion
@@ -84,7 +114,12 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
-    }
+        def googleMapsApiKey = project.ext.env.get("GOOGLE_MAPS_API_KEY") ?: ""
+        resValue "string", "google_maps_api_key", googleMapsApiKey   
+
+        
+ }
+
     signingConfigs {
         debug {
             storeFile file('debug.keystore')
@@ -110,10 +145,10 @@ android {
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
-
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
     } else {
         implementation jscFlavor
     }
 }
+apply from: "../../node_modules/react-native-vector-icons/fonts.gradle"

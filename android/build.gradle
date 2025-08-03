@@ -10,6 +10,7 @@ buildscript {
     repositories {
         google()
         mavenCentral()
+                maven { url 'https://maven.google.com' }  // <-- required for maps
     }
     dependencies {
         classpath("com.android.tools.build:gradle")
