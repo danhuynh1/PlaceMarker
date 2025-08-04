@@ -34,8 +34,7 @@ const MapScreen = () => {
   // Local state
   const mapRef = useRef<MapView>(null);
   const [mapIsReady, setMapIsReady] = useState(false);
-  
-  // *** ADDED TO FIX DRAWER CRASH ***
+
   // This hook returns true if the screen is focused, and false otherwise.
   const isFocused = useIsFocused();
 
@@ -46,7 +45,7 @@ const MapScreen = () => {
       return () => setMapIsReady(false);
     }, [requestLocationPermission]),
   );
-  
+
   // This effect runs whenever the user's location or the list of saved
   // restaurants changes. It ensures that the visible restaurants are always
   // up-to-date without needing a manual button press.
@@ -55,7 +54,6 @@ const MapScreen = () => {
       findNearbyRestaurants();
     }
   }, [userLocation, savedRestaurants, findNearbyRestaurants]);
-
 
   // Set initial region when user location is available
   useEffect(() => {
@@ -115,7 +113,6 @@ const MapScreen = () => {
   // Determine initial region
   const initialRegion = currentRegion || userLocation || DEFAULT_REGION;
 
-  // *** UPDATED TO PREVENT BACKGROUND RENDERING ***
   // We only render the MapView if the screen is focused.
   // Otherwise, we render an empty View.
   if (!isFocused) {
@@ -129,7 +126,6 @@ const MapScreen = () => {
         style={styles.map}
         ref={mapRef}
         initialRegion={initialRegion}
-        showsUserLocation={true}
         onRegionChangeComplete={handleRegionChangeComplete}
         onMapReady={() => setMapIsReady(true)}
       >
@@ -147,18 +143,18 @@ const MapScreen = () => {
                   strokeColor="rgba(0, 128, 0, 0.5)"
                   fillColor="rgba(0, 128, 0, 0.1)"
                 />
+                {/* Custom User Location Marker */}
                 <Marker
                   coordinate={{
                     latitude: userLocation.latitude,
                     longitude: userLocation.longitude,
                   }}
-                  title="Your Location"
-                  description="You are here"
-                />
+                  title="You Are Here"
+                ></Marker>
               </>
             )}
 
-            {/* Saved restaurants (always visible) */}
+            {/* Saved restaurants with always-visible titles */}
             {savedRestaurants.map(restaurant => {
               const isVisible = visibleRestaurants.some(
                 r => r.id === restaurant.id,
@@ -170,10 +166,20 @@ const MapScreen = () => {
                     latitude: restaurant.latitude,
                     longitude: restaurant.longitude,
                   }}
-                  title={restaurant.name}
-                  pinColor={isVisible ? 'green' : 'blue'}
-                  opacity={isVisible ? 1 : 0.5}
-                />
+                  anchor={{ x: 0.5, y: 1 }}
+                >
+                  <View style={styles.customMarker}>
+                    <View style={styles.markerBubble}>
+                      <Text style={styles.markerText}>{restaurant.name}</Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.markerPin,
+                        { borderTopColor: isVisible ? 'green' : 'blue' },
+                      ]}
+                    />
+                  </View>
+                </Marker>
               );
             })}
           </>
@@ -251,7 +257,7 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
   },
   zoomButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    backgroundColor: 'rgba(255, 255, 255, 1)',
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -268,5 +274,31 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     color: '#333',
+  },
+  // Styles for custom markers with always-visible titles
+  customMarker: {
+    alignItems: 'center',
+  },
+  markerBubble: {
+    backgroundColor: 'white',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+    borderColor: '#555',
+    borderWidth: 1,
+  },
+  markerText: {
+    color: '#333',
+    fontWeight: 'bold',
+  },
+  markerPin: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 8,
+    borderRightWidth: 8,
+    borderTopWidth: 12,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    alignSelf: 'center',
   },
 });
