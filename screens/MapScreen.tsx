@@ -1,55 +1,135 @@
-// App.tsx or LocationMap.tsx
-import React, { useEffect, useState } from 'react';
-import { PermissionsAndroid, Platform, View, StyleSheet } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
-import Geolocation from '@react-native-community/geolocation';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import {
+  Text,
+  ActivityIndicator,
+  View,
+  StyleSheet,
+  Pressable,
+} from 'react-native';
+import MapView, { Marker, PROVIDER_GOOGLE, Circle } from 'react-native-maps';
+import { useFocusEffect } from '@react-navigation/native';
+import { useAppStore } from '../stores/useLocationStore';
 
 const MapScreen = () => {
-  const [location, setLocation] = useState<Region | null>(null);
+  const userLocation = useAppStore(state => state.userLocation);
+  const restaurantMarkers = useAppStore(state => state.restaurantMarkers);
+  const selectedRestaurants = useAppStore(state => state.selectedRestaurants);
+  const searchRestaurants = useAppStore(state => state.searchRestaurants);
+  const requestLocationPermission = useAppStore(state => state.requestLocationPermission);
+  const searchRadius = useAppStore(state => state.searchRadius);
+
+  const mapRef = useRef<MapView>(null);
+  const [mapIsReady, setMapIsReady] = useState(false);
+  const [initialAnimationDone, setInitialAnimationDone] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      requestLocationPermission();
+      return () => setMapIsReady(false);
+    }, [requestLocationPermission]),
+  );
 
   useEffect(() => {
-    const requestLocationPermission = async () => {
-      if (Platform.OS === 'android') {
-        const granted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-        );
-        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-          console.log('Location permission denied');
-          return;
-        }
+    if (!mapIsReady || !mapRef.current) {
+      return;
+    }
+    
+    // Animate to fit all found restaurants
+    if (restaurantMarkers.length > 0) {
+      const allCoordinates = [
+        ...restaurantMarkers.map(r => ({ latitude: r.latitude, longitude: r.longitude })),
+      ];
+      if (userLocation) {
+        allCoordinates.push({
+          latitude: userLocation.latitude,
+          longitude: userLocation.longitude,
+        });
       }
+      mapRef.current.fitToCoordinates(allCoordinates, {
+        edgePadding: { top: 100, right: 50, bottom: 50, left: 50 },
+        animated: true,
+      });
+      setInitialAnimationDone(true);
+    } else if (userLocation && !initialAnimationDone) {
+      // Otherwise, just animate to the user's location
+      mapRef.current.animateToRegion(userLocation, 1000);
+      setInitialAnimationDone(true);
+    }
+  }, [mapIsReady, userLocation, restaurantMarkers, initialAnimationDone]);
 
-      Geolocation.getCurrentPosition(
-        position => {
-          const { latitude, longitude } = position.coords;
-          setLocation({
-            latitude,
-            longitude,
-            latitudeDelta: 0.005,
-            longitudeDelta: 0.005,
-          });
-        },
-        error => {
-          console.warn('Geolocation error:', error);
-        },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 },
-      );
-    };
+  const goToCurrentPosition = () => {
+    if (userLocation && mapRef.current) {
+      mapRef.current.animateToRegion(userLocation, 1000);
+    }
+  };
 
-    requestLocationPermission();
-  }, []);
+  const findNearbyRestaurants = () => {
+    searchRestaurants();
+  };
+
+  const initialRegion = userLocation || {
+    latitude: 43.4549,
+    longitude: -80.4998,
+    latitudeDelta: 0.0922,
+    longitudeDelta: 0.0421,
+  };
+
+  const isMarked = (restaurantId) => {
+    return selectedRestaurants.some(r => r.id === restaurantId);
+  }
 
   return (
     <View style={styles.container}>
-      {location && (
+      {userLocation ? (
         <MapView
           provider={PROVIDER_GOOGLE}
           style={styles.map}
-          region={location}
+          ref={mapRef}
+          initialRegion={initialRegion}
           showsUserLocation={true}
+          onMapReady={() => setMapIsReady(true)}
         >
-          <Marker coordinate={location} title="You are here" />
+          {userLocation && (
+            <Marker coordinate={userLocation} title="You are here" pinColor="blue" />
+          )}
+          {userLocation && mapIsReady && (
+            <Circle
+              center={{ latitude: userLocation.latitude, longitude: userLocation.longitude }}
+              radius={searchRadius}
+              strokeColor="rgba(0, 128, 0, 0.5)"
+              fillColor="rgba(0, 128, 0, 0.1)"
+            />
+          )}
+
+          {/* This is the final, corrected marker rendering logic */}
+          {restaurantMarkers.map((restaurant) => (
+            <Marker
+              key={restaurant.id}
+              coordinate={{
+                latitude: restaurant.latitude,
+                longitude: restaurant.longitude,
+              }}
+              title={restaurant.name}
+              pinColor="green"
+            />
+          ))}
         </MapView>
+      ) : (
+        <View style={styles.screenContainer}>
+          <Text style={styles.screenTitle}>Loading Map...</Text>
+          <ActivityIndicator size="large" color="#388e3c" />
+        </View>
+      )}
+
+      {userLocation && (
+        <View style={styles.buttonContainer}>
+          <Pressable style={styles.button} onPress={goToCurrentPosition}>
+            <Text style={styles.buttonText}>My Location</Text>
+          </Pressable>
+          <Pressable style={[styles.button, styles.findButton]} onPress={findNearbyRestaurants}>
+            <Text style={styles.buttonText}>Find Restaurants</Text>
+          </Pressable>
+        </View>
       )}
     </View>
   );
@@ -63,5 +143,44 @@ const styles = StyleSheet.create({
   },
   map: {
     ...StyleSheet.absoluteFillObject,
+  },
+  screenContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F5F5F5',
+    padding: 20,
+  },
+  screenTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    marginBottom: 10,
+    color: '#333',
+  },
+  buttonContainer: {
+    position: 'absolute',
+    bottom: 120,
+    right: 20,
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+  },
+  button: {
+    backgroundColor: '#388e3c',
+    borderRadius: 50,
+    padding: 15,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  findButton: {
+    backgroundColor: '#007AFF',
+  },
+  buttonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    textAlign: 'center',
   },
 });
