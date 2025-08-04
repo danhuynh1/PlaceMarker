@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, Text, FlatList, StyleSheet } from 'react-native';
-import useCountryStore from '../stores/useCountryStore';
 
 /**
  * FavoritesScreen component displays a list of favorite countries.

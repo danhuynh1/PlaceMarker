@@ -1,13 +1,6 @@
 // App.tsx or LocationMap.tsx
 import React, { useEffect, useState } from 'react';
-import {
-  Text,
-  ActivityIndicator,
-  PermissionsAndroid,
-  Platform,
-  View,
-  StyleSheet,
-} from 'react-native';
+import { PermissionsAndroid, Platform, View, StyleSheet } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import Geolocation from '@react-native-community/geolocation';
 
@@ -48,7 +41,7 @@ const MapScreen = () => {
 
   return (
     <View style={styles.container}>
-      {location ? (
+      {location && (
         <MapView
           provider={PROVIDER_GOOGLE}
           style={styles.map}
@@ -57,11 +50,6 @@ const MapScreen = () => {
         >
           <Marker coordinate={location} title="You are here" />
         </MapView>
-      ) : (
-        <View style={styles.screenContainer}>
-          <Text style={styles.screenTitle}>Loading Map...</Text>
-          <ActivityIndicator size="large" color="#388e3c" />
-        </View>
       )}
     </View>
   );
@@ -75,18 +63,5 @@ const styles = StyleSheet.create({
   },
   map: {
     ...StyleSheet.absoluteFillObject,
-  },
-  screenContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F5F5F5',
-    padding: 20,
-  },
-  screenTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginBottom: 10,
-    color: '#333',
   },
 });
