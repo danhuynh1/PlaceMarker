@@ -1,136 +1,210 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import {
-  Text,
-  ActivityIndicator,
-  View,
-  StyleSheet,
-  Pressable,
-} from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE, Circle } from 'react-native-maps';
-import { useFocusEffect } from '@react-navigation/native';
+import { Text, View, StyleSheet, Pressable } from 'react-native';
+import MapView, {
+  Marker,
+  PROVIDER_GOOGLE,
+  Circle,
+  Region,
+} from 'react-native-maps';
+import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { useAppStore } from '../stores/useLocationStore';
 
-const MapScreen = () => {
-  const userLocation = useAppStore(state => state.userLocation);
-  const restaurantMarkers = useAppStore(state => state.restaurantMarkers);
-  const selectedRestaurants = useAppStore(state => state.selectedRestaurants);
-  const searchRestaurants = useAppStore(state => state.searchRestaurants);
-  const requestLocationPermission = useAppStore(state => state.requestLocationPermission);
-  const searchRadius = useAppStore(state => state.searchRadius);
+const DEFAULT_REGION = {
+  latitude: 43.4549,
+  longitude: -80.4998,
+  latitudeDelta: 0.0922,
+  longitudeDelta: 0.0421,
+};
 
+const MapScreen = () => {
+  // Store hooks
+  const userLocation = useAppStore(state => state.userLocation);
+  const visibleRestaurants = useAppStore(state => state.visibleRestaurants);
+  const savedRestaurants = useAppStore(state => state.savedRestaurants);
+  const searchRadius = useAppStore(state => state.searchRadius);
+  const currentRegion = useAppStore(state => state.currentRegion);
+  const setCurrentRegion = useAppStore(state => state.setCurrentRegion);
+  const findNearbyRestaurants = useAppStore(
+    state => state.findNearbyRestaurants,
+  );
+  const requestLocationPermission = useAppStore(
+    state => state.requestLocationPermission,
+  );
+
+  // Local state
   const mapRef = useRef<MapView>(null);
   const [mapIsReady, setMapIsReady] = useState(false);
-  const [initialAnimationDone, setInitialAnimationDone] = useState(false);
+  
+  // *** ADDED TO FIX DRAWER CRASH ***
+  // This hook returns true if the screen is focused, and false otherwise.
+  const isFocused = useIsFocused();
 
+  // Request location permission on focus
   useFocusEffect(
     useCallback(() => {
       requestLocationPermission();
       return () => setMapIsReady(false);
     }, [requestLocationPermission]),
   );
-
+  
+  // This effect runs whenever the user's location or the list of saved
+  // restaurants changes. It ensures that the visible restaurants are always
+  // up-to-date without needing a manual button press.
   useEffect(() => {
-    if (!mapIsReady || !mapRef.current) {
-      return;
+    if (userLocation && savedRestaurants.length > 0) {
+      findNearbyRestaurants();
     }
-    
-    // Animate to fit all found restaurants
-    if (restaurantMarkers.length > 0) {
-      const allCoordinates = [
-        ...restaurantMarkers.map(r => ({ latitude: r.latitude, longitude: r.longitude })),
-      ];
-      if (userLocation) {
-        allCoordinates.push({
-          latitude: userLocation.latitude,
-          longitude: userLocation.longitude,
-        });
-      }
-      mapRef.current.fitToCoordinates(allCoordinates, {
-        edgePadding: { top: 100, right: 50, bottom: 50, left: 50 },
-        animated: true,
-      });
-      setInitialAnimationDone(true);
-    } else if (userLocation && !initialAnimationDone) {
-      // Otherwise, just animate to the user's location
-      mapRef.current.animateToRegion(userLocation, 1000);
-      setInitialAnimationDone(true);
-    }
-  }, [mapIsReady, userLocation, restaurantMarkers, initialAnimationDone]);
+  }, [userLocation, savedRestaurants, findNearbyRestaurants]);
 
+
+  // Set initial region when user location is available
+  useEffect(() => {
+    if (userLocation && !currentRegion) {
+      setCurrentRegion(userLocation);
+    }
+  }, [userLocation, currentRegion, setCurrentRegion]);
+
+  // Handlers
   const goToCurrentPosition = () => {
     if (userLocation && mapRef.current) {
       mapRef.current.animateToRegion(userLocation, 1000);
     }
   };
 
-  const findNearbyRestaurants = () => {
-    searchRestaurants();
+  const handleFindRestaurants = () => {
+    findNearbyRestaurants();
+
+    // Fit map to show all visible restaurants after a short delay
+    setTimeout(() => {
+      if (mapRef.current && visibleRestaurants.length > 0) {
+        const coordinates = visibleRestaurants.map(r => ({
+          latitude: r.latitude,
+          longitude: r.longitude,
+        }));
+
+        if (userLocation) {
+          coordinates.push({
+            latitude: userLocation.latitude,
+            longitude: userLocation.longitude,
+          });
+        }
+
+        mapRef.current.fitToCoordinates(coordinates, {
+          edgePadding: { top: 100, right: 50, bottom: 150, left: 50 },
+          animated: true,
+        });
+      }
+    }, 300);
   };
 
-  const initialRegion = userLocation || {
-    latitude: 43.4549,
-    longitude: -80.4998,
-    latitudeDelta: 0.0922,
-    longitudeDelta: 0.0421,
+  const handleRegionChangeComplete = (region: Region) => {
+    setCurrentRegion(region);
   };
 
-  const isMarked = (restaurantId) => {
-    return selectedRestaurants.some(r => r.id === restaurantId);
+  const handleZoom = (factor: number) => {
+    if (!currentRegion || !mapRef.current) return;
+
+    const newRegion = {
+      ...currentRegion,
+      latitudeDelta: currentRegion.latitudeDelta * factor,
+      longitudeDelta: currentRegion.longitudeDelta * factor,
+    };
+    mapRef.current.animateToRegion(newRegion, 250);
+  };
+
+  // Determine initial region
+  const initialRegion = currentRegion || userLocation || DEFAULT_REGION;
+
+  // *** UPDATED TO PREVENT BACKGROUND RENDERING ***
+  // We only render the MapView if the screen is focused.
+  // Otherwise, we render an empty View.
+  if (!isFocused) {
+    return <View style={styles.container} />;
   }
 
   return (
     <View style={styles.container}>
-      {userLocation ? (
-        <MapView
-          provider={PROVIDER_GOOGLE}
-          style={styles.map}
-          ref={mapRef}
-          initialRegion={initialRegion}
-          showsUserLocation={true}
-          onMapReady={() => setMapIsReady(true)}
-        >
-          {userLocation && (
-            <Marker coordinate={userLocation} title="You are here" pinColor="blue" />
-          )}
-          {userLocation && mapIsReady && (
-            <Circle
-              center={{ latitude: userLocation.latitude, longitude: userLocation.longitude }}
-              radius={searchRadius}
-              strokeColor="rgba(0, 128, 0, 0.5)"
-              fillColor="rgba(0, 128, 0, 0.1)"
-            />
-          )}
+      <MapView
+        provider={PROVIDER_GOOGLE}
+        style={styles.map}
+        ref={mapRef}
+        initialRegion={initialRegion}
+        showsUserLocation={true}
+        onRegionChangeComplete={handleRegionChangeComplete}
+        onMapReady={() => setMapIsReady(true)}
+      >
+        {mapIsReady && (
+          <>
+            {/* Search radius circle */}
+            {userLocation && (
+              <>
+                <Circle
+                  center={{
+                    latitude: userLocation.latitude,
+                    longitude: userLocation.longitude,
+                  }}
+                  radius={searchRadius}
+                  strokeColor="rgba(0, 128, 0, 0.5)"
+                  fillColor="rgba(0, 128, 0, 0.1)"
+                />
+                <Marker
+                  coordinate={{
+                    latitude: userLocation.latitude,
+                    longitude: userLocation.longitude,
+                  }}
+                  title="Your Location"
+                  description="You are here"
+                />
+              </>
+            )}
 
-          {/* This is the final, corrected marker rendering logic */}
-          {restaurantMarkers.map((restaurant) => (
-            <Marker
-              key={restaurant.id}
-              coordinate={{
-                latitude: restaurant.latitude,
-                longitude: restaurant.longitude,
-              }}
-              title={restaurant.name}
-              pinColor="green"
-            />
-          ))}
-        </MapView>
-      ) : (
-        <View style={styles.screenContainer}>
-          <Text style={styles.screenTitle}>Loading Map...</Text>
-          <ActivityIndicator size="large" color="#388e3c" />
-        </View>
-      )}
+            {/* Saved restaurants (always visible) */}
+            {savedRestaurants.map(restaurant => {
+              const isVisible = visibleRestaurants.some(
+                r => r.id === restaurant.id,
+              );
+              return (
+                <Marker
+                  key={restaurant.id}
+                  coordinate={{
+                    latitude: restaurant.latitude,
+                    longitude: restaurant.longitude,
+                  }}
+                  title={restaurant.name}
+                  pinColor={isVisible ? 'green' : 'blue'}
+                  opacity={isVisible ? 1 : 0.5}
+                />
+              );
+            })}
+          </>
+        )}
+      </MapView>
 
+      {/* Action buttons */}
       {userLocation && (
         <View style={styles.buttonContainer}>
           <Pressable style={styles.button} onPress={goToCurrentPosition}>
             <Text style={styles.buttonText}>My Location</Text>
           </Pressable>
-          <Pressable style={[styles.button, styles.findButton]} onPress={findNearbyRestaurants}>
+
+          <Pressable
+            style={[styles.button, styles.findButton]}
+            onPress={handleFindRestaurants}
+          >
             <Text style={styles.buttonText}>Find Restaurants</Text>
           </Pressable>
         </View>
       )}
+
+      {/* Zoom Controls */}
+      <View style={styles.zoomControls}>
+        <Pressable style={styles.zoomButton} onPress={() => handleZoom(0.5)}>
+          <Text style={styles.zoomButtonText}>+</Text>
+        </Pressable>
+        <Pressable style={styles.zoomButton} onPress={() => handleZoom(2)}>
+          <Text style={styles.zoomButtonText}>-</Text>
+        </Pressable>
+      </View>
     </View>
   );
 };
@@ -143,19 +217,6 @@ const styles = StyleSheet.create({
   },
   map: {
     ...StyleSheet.absoluteFillObject,
-  },
-  screenContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F5F5F5',
-    padding: 20,
-  },
-  screenTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginBottom: 10,
-    color: '#333',
   },
   buttonContainer: {
     position: 'absolute',
@@ -182,5 +243,30 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: 'bold',
     textAlign: 'center',
+  },
+  zoomControls: {
+    position: 'absolute',
+    top: 60,
+    right: 20,
+    flexDirection: 'column',
+  },
+  zoomButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 10,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.22,
+    shadowRadius: 2.22,
+  },
+  zoomButtonText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
   },
 });

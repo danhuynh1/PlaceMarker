@@ -1,27 +1,47 @@
 // MarkedScreen.tsx
 import React from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable } from 'react-native';
-import { useAppStore } from '../stores/useLocationStore'; // Make sure the path is correct
+import  {useAppStore} from '../stores/useLocationStore'; // Make sure the path is correct
 
-const MarkedScreen = () => {
-  const selectedRestaurants = useAppStore(state => state.selectedRestaurants);
-  const removeSelectedRestaurant = useAppStore(state => state.removeSelectedRestaurant);
+
+const MarkedScreen = ({ navigation }) => {
+  const savedRestaurants = useAppStore(state => state.savedRestaurants);
+  const removeSelectedRestaurant = useAppStore(state => state.removeRestaurant);
+  const setCurrentRegion = useAppStore(state => state.setCurrentRegion);
+
+  const handleViewOnMap = (restaurant) => {
+    // 1. Create a region object from the restaurant's coordinates
+    const region = {
+        latitude: restaurant.latitude,
+        longitude: restaurant.longitude,
+        latitudeDelta: 0.01, // A nice, close-up zoom level
+        longitudeDelta: 0.01,
+    };
+
+    // 2. Update the global state with the new camera position
+    setCurrentRegion(region);
+
+    // 3. Navigate the user to the Map screen
+    navigation.navigate('Map');
+  };
 
   const renderRestaurantItem = ({ item }) => (
-    <View style={styles.itemContainer}>
+    // Wrap the entire item container in a Pressable
+    <Pressable onPress={() => handleViewOnMap(item)} style={styles.itemContainer}>
       <Text style={styles.itemName}>{item.name}</Text>
-      <Pressable onPress={() => removeSelectedRestaurant(item.id)} style={styles.removeButton}>
+      {/* Use a separate Pressable for the remove button to stop event propagation */}
+      <Pressable onPress={(e) => { e.stopPropagation(); removeSelectedRestaurant(item.id); }} style={styles.removeButton}>
         <Text style={styles.removeButtonText}>Remove</Text>
       </Pressable>
-    </View>
+    </Pressable>
   );
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Marked Restaurants</Text>
-      {selectedRestaurants.length > 0 ? (
+      {savedRestaurants.length > 0 ? (
         <FlatList
-          data={selectedRestaurants}
+          data={savedRestaurants}
           renderItem={renderRestaurantItem}
           keyExtractor={item => item.id}
           style={styles.list}
@@ -64,12 +84,14 @@ const styles = StyleSheet.create({
   itemName: {
     fontSize: 18,
     fontWeight: '500',
+    flex: 1, // Allow text to take up available space
   },
   removeButton: {
     backgroundColor: '#FF6347',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 5,
+    marginLeft: 10, // Add some space between name and button
   },
   removeButtonText: {
     color: '#fff',

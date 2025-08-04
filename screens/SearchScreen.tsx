@@ -1,6 +1,13 @@
 // SearchScreen.tsx
 import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  Pressable,
+  StyleSheet,
+  Alert,
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useAppStore, Restaurant } from '../stores/useLocationStore';
 
@@ -8,22 +15,79 @@ const pseudoSearch = (query: string, userLocation): Restaurant[] => {
   if (!userLocation) {
     return [];
   }
-  
+
   const baseLat = userLocation.latitude;
   const baseLon = userLocation.longitude;
-  
+
   return [
-    { id: '6', name: 'Sushi Spot', latitude: baseLat + 0.005, longitude: baseLon + 0.005 },
-    { id: '7', name: 'Pizza Place', latitude: baseLat - 0.003, longitude: baseLon - 0.003 },
-    { id: '8', name: 'Thai Express', latitude: baseLat + 0.001, longitude: baseLon - 0.008 },
-    { id: '9', name: 'Indian Palace', latitude: baseLat - 0.006, longitude: baseLon + 0.004 },
-    { id: '10', name: 'Starbucks', latitude: baseLat + 0.004, longitude: baseLon + 0.002 },
+    {
+      id: '1',
+      name: 'Burger Haven',
+      latitude: baseLat + 0.005,
+      longitude: baseLon,
+    },
+    {
+      id: '2',
+      name: 'Sushi Spot',
+      latitude: baseLat + 0.01,
+      longitude: baseLon + 0.008,
+    },
+    {
+      id: '3',
+      name: 'Pizza Place',
+      latitude: baseLat - 0.015,
+      longitude: baseLon - 0.01,
+    },
+    {
+      id: '4',
+      name: 'Thai Express',
+      latitude: baseLat + 0.03,
+      longitude: baseLon - 0.02,
+    },
+    {
+      id: '5',
+      name: 'Indian Palace',
+      latitude: baseLat - 0.025,
+      longitude: baseLon + 0.015,
+    },
+    {
+      id: '6',
+      name: 'Starbucks',
+      latitude: baseLat + 0.04,
+      longitude: baseLon + 0.01,
+    },
+    {
+      id: '7',
+      name: 'Fancy French Bistro',
+      latitude: baseLat + 0.07,
+      longitude: baseLon + 0.06,
+    },
+    {
+      id: '8',
+      name: 'Distant BBQ Joint',
+      latitude: baseLat - 0.06,
+      longitude: baseLon - 0.05,
+    },
+    {
+      id: '9',
+      name: 'Hidden Vegan Café',
+      latitude: baseLat + 0.08,
+      longitude: baseLon - 0.07,
+    },
+    {
+      id: '10',
+      name: 'Faraway Diner',
+      latitude: baseLat - 0.09,
+      longitude: baseLon + 0.04,
+    },
   ];
 };
 
 const SearchScreen = () => {
   const [searchQuery, setSearchQuery] = useState('');
-  const addSelectedRestaurant = useAppStore(state => state.addSelectedRestaurant);
+  const addSelectedRestaurant = useAppStore(
+    state => state.addRestaurant,
+  );
   const userLocation = useAppStore(state => state.userLocation);
   const navigation = useNavigation();
 
@@ -32,9 +96,9 @@ const SearchScreen = () => {
       Alert.alert('Error', 'Please enter a search query.');
       return;
     }
-    
+
     const results = pseudoSearch(searchQuery, userLocation);
-    
+
     if (results.length === 0) {
       Alert.alert('No Results', 'No nearby restaurants were found.');
       return;
@@ -45,13 +109,8 @@ const SearchScreen = () => {
     });
 
     Alert.alert('Success', `${results.length} restaurants added to Marked!`);
-    
-    // --- THIS IS THE KEY FIX ---
-    // The setTimeout is the critical piece that prevents a crash.
-    setTimeout(() => {
-      navigation.navigate('Marked');
-    }, 500);
 
+    // navigation.navigate('Map');
   };
 
   return (
