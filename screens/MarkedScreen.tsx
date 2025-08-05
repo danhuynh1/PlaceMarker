@@ -1,21 +1,20 @@
 // MarkedScreen.tsx
 import React from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable } from 'react-native';
-import  {useAppStore} from '../stores/useLocationStore'; // Make sure the path is correct
-
-
+import { useAppStore } from '../stores/useLocationStore'; // Make sure the path is correct
+import { SafeAreaView } from 'react-native-safe-area-context';
 const MarkedScreen = ({ navigation }) => {
   const savedRestaurants = useAppStore(state => state.savedRestaurants);
   const removeSelectedRestaurant = useAppStore(state => state.removeRestaurant);
   const setCurrentRegion = useAppStore(state => state.setCurrentRegion);
 
-  const handleViewOnMap = (restaurant) => {
+  const handleViewOnMap = restaurant => {
     // 1. Create a region object from the restaurant's coordinates
     const region = {
-        latitude: restaurant.latitude,
-        longitude: restaurant.longitude,
-        latitudeDelta: 0.01, // A nice, close-up zoom level
-        longitudeDelta: 0.01,
+      latitude: restaurant.latitude,
+      longitude: restaurant.longitude,
+      latitudeDelta: 0.01, // A nice, close-up zoom level
+      longitudeDelta: 0.01,
     };
 
     // 2. Update the global state with the new camera position
@@ -27,10 +26,19 @@ const MarkedScreen = ({ navigation }) => {
 
   const renderRestaurantItem = ({ item }) => (
     // Wrap the entire item container in a Pressable
-    <Pressable onPress={() => handleViewOnMap(item)} style={styles.itemContainer}>
+    <Pressable
+      onPress={() => handleViewOnMap(item)}
+      style={styles.itemContainer}
+    >
       <Text style={styles.itemName}>{item.name}</Text>
       {/* Use a separate Pressable for the remove button to stop event propagation */}
-      <Pressable onPress={(e) => { e.stopPropagation(); removeSelectedRestaurant(item.id); }} style={styles.removeButton}>
+      <Pressable
+        onPress={e => {
+          e.stopPropagation();
+          removeSelectedRestaurant(item.id);
+        }}
+        style={styles.removeButton}
+      >
         <Text style={styles.removeButtonText}>Remove</Text>
       </Pressable>
     </Pressable>
@@ -47,7 +55,9 @@ const MarkedScreen = ({ navigation }) => {
           style={styles.list}
         />
       ) : (
-        <Text style={styles.emptyText}>No restaurants have been marked yet.</Text>
+        <Text style={styles.emptyText}>
+          No restaurants have been marked yet.
+        </Text>
       )}
     </View>
   );
@@ -57,6 +67,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 20,
+    paddingBottom: 100,
     backgroundColor: '#F5F5F5',
   },
   title: {
@@ -80,6 +91,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowRadius: 4,
     elevation: 2,
+    // paddingBottom: 100,
   },
   itemName: {
     fontSize: 18,
@@ -102,7 +114,7 @@ const styles = StyleSheet.create({
     color: '#888',
     textAlign: 'center',
     marginTop: 50,
-  }
+  },
 });
 
 export default MarkedScreen;
