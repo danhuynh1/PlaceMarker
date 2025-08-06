@@ -107,6 +107,7 @@ const MapScreen = () => {
       }
 
       mapRef.current.fitToCoordinates(coordinates, {
+        edgePadding: { top: 200, right: 150, bottom: 150, left: 150 },
         animated: true,
       });
     }

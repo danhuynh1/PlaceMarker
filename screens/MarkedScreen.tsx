@@ -1,40 +1,41 @@
 // MarkedScreen.tsx
 import React from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable } from 'react-native';
-import { useAppStore } from '../stores/useLocationStore'; // Make sure the path is correct
+import { useAppStore } from '../stores/useLocationStore';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
 const MarkedScreen = ({ navigation }) => {
   const savedRestaurants = useAppStore(state => state.savedRestaurants);
   const removeSelectedRestaurant = useAppStore(state => state.removeRestaurant);
   const setCurrentRegion = useAppStore(state => state.setCurrentRegion);
 
   const handleViewOnMap = restaurant => {
-    // 1. Create a region object from the restaurant's coordinates
     const region = {
       latitude: restaurant.latitude,
       longitude: restaurant.longitude,
-      latitudeDelta: 0.01, // A nice, close-up zoom level
+      latitudeDelta: 0.01,
       longitudeDelta: 0.01,
     };
-
-    // 2. Update the global state with the new camera position
     setCurrentRegion(region);
-
-    // 3. Navigate the user to the Map screen
     navigation.navigate('Map');
   };
 
   const renderRestaurantItem = ({ item }) => (
-    // Wrap the entire item container in a Pressable
     <Pressable
       onPress={() => handleViewOnMap(item)}
       style={styles.itemContainer}
     >
-      <Text style={styles.itemName}>{item.name}</Text>
-      {/* Use a separate Pressable for the remove button to stop event propagation */}
+      {/* View to group text content vertically */}
+      <View style={styles.itemTextContainer}>
+        <Text style={styles.itemName}>{item.name}</Text>
+        {/* Added address field with its own style */}
+        <Text style={styles.itemAddress}>{item.address}</Text>
+      </View>
+
+      {/* Separate Pressable for the remove button */}
       <Pressable
         onPress={e => {
-          e.stopPropagation();
+          e.stopPropagation(); // Prevents navigating to map when removing
           removeSelectedRestaurant(item.id);
         }}
         style={styles.removeButton}
@@ -45,75 +46,94 @@ const MarkedScreen = ({ navigation }) => {
   );
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Marked Restaurants</Text>
-      {savedRestaurants.length > 0 ? (
-        <FlatList
-          data={savedRestaurants}
-          renderItem={renderRestaurantItem}
-          keyExtractor={item => item.id}
-          style={styles.list}
-        />
-      ) : (
-        <Text style={styles.emptyText}>
-          No restaurants have been marked yet.
-        </Text>
-      )}
-    </View>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        <Text style={styles.title}>Marked Restaurants</Text>
+        {savedRestaurants.length > 0 ? (
+          <FlatList
+            data={savedRestaurants}
+            renderItem={renderRestaurantItem}
+            keyExtractor={item => item.id}
+            contentContainerStyle={styles.listContentContainer}
+          />
+        ) : (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>
+              No restaurants have been marked yet.
+            </Text>
+          </View>
+        )}
+      </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#f9f9f9', // A slightly off-white background
+  },
   container: {
     flex: 1,
-    padding: 20,
-    paddingBottom: 100,
-    backgroundColor: '#F5F5F5',
+    paddingHorizontal: 20,
   },
   title: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
-    marginBottom: 20,
+    color: '#222',
+    marginTop: 16,
+    marginBottom: 24,
   },
-  list: {
-    flex: 1,
+  listContentContainer: {
+    paddingBottom: 20,
   },
   itemContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 15,
+    paddingVertical: 16,
     backgroundColor: '#fff',
-    borderRadius: 8,
-    marginBottom: 10,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    elevation: 2,
-    // paddingBottom: 100,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    marginBottom: 7,
+    // shadowColor: '#000',
+    // elevation: 3,
+  },
+  itemTextContainer: {
+    flex: 1, // Allows this container to grow and push the button to the right
+    marginRight: 10,
   },
   itemName: {
-    fontSize: 18,
-    fontWeight: '500',
-    flex: 1, // Allow text to take up available space
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#333',
+  },
+  itemAddress: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 4,
   },
   removeButton: {
-    backgroundColor: '#FF6347',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 5,
-    marginLeft: 10, // Add some space between name and button
+    backgroundColor: '#fee2e2', 
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
   },
   removeButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
+    color: '#ef4444', // A matching red text color
+    fontWeight: '600',
+    fontSize: 12,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingBottom: 50, // Offset from the center a bit
   },
   emptyText: {
     fontSize: 16,
     color: '#888',
     textAlign: 'center',
-    marginTop: 50,
   },
 });
 

@@ -18,6 +18,7 @@ export type Restaurant = {
   name: string;
   latitude: number;
   longitude: number;
+  address: string;
 };
 
 interface AppState {
