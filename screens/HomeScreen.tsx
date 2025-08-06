@@ -7,7 +7,10 @@ import ProfileScreen from './SearchScreen';
 import { StyleSheet, Platform } from 'react-native';
 
 const Tab = createBottomTabNavigator();
-
+/**
+ *
+ * @returns HomeScreen container with 3 Bottom Tabs (Marked|Map|Search)
+ */
 const HomeScreen = () => {
   return (
     <Tab.Navigator
@@ -17,27 +20,51 @@ const HomeScreen = () => {
         headerShown: false,
         tabBarStyle: styles.floatingTab,
         tabBarActiveTintColor: 'white',
-        tabBarInactiveTintColor: 'black',
-        tabBarIcon: ({ color, size }) => {
-          let iconName;
-
-          if (route.name === 'Map') {
-            iconName = 'map-outline';
-          } else if (route.name === 'Marked') {
-            iconName = 'map-marker-outline';
-          } else if (route.name === 'Search') {
-            iconName = 'map-search-outline';
-          }
-
-          return (
-            <MaterialCommunityIcons name={iconName} color={color} size={size} />
-          );
-        },
+        tabBarInactiveTintColor: '',
       })}
     >
-      <Tab.Screen name="Marked" component={FavouritesScreen} />
-      <Tab.Screen name="Map" component={MapScreen} />
-      <Tab.Screen name="Search" component={ProfileScreen} />
+      <Tab.Screen
+        name="Marked"
+        options={{
+          title: 'Marked',
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons
+              name="map-marker-outline"
+              color={color}
+              size={size}
+            />
+          ),
+        }}
+        component={FavouritesScreen}
+      />
+      <Tab.Screen
+        name="Map"
+        options={{
+          title: 'Map',
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons
+              name="map-outline"
+              color={color}
+              size={size}
+            />
+          ),
+        }}
+        component={MapScreen}
+      />
+      <Tab.Screen
+        name="Search"
+        options={{
+          title: 'Search',
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons
+              name="map-search-outline"
+              color={color}
+              size={size}
+            />
+          ),
+        }}
+        component={ProfileScreen}
+      />
     </Tab.Navigator>
   );
 };
@@ -46,16 +73,11 @@ export default HomeScreen;
 
 const styles = StyleSheet.create({
   floatingTab: {
-    color: 'white',
     position: 'absolute',
     bottom: 40,
-    left: 20,
-    right: 20,
-    elevation: 5,
-    backgroundColor: 'rgba(56,142,60,0.3)',
+    backgroundColor: 'rgba(56,142,60,0.6)',
     borderRadius: 30,
     height: 60,
-    paddingBottom: Platform.OS === 'android' ? 10 : 20,
     shadowColor: '#000',
     shadowOpacity: 0.1,
     shadowOffset: { width: 0, height: 5 },

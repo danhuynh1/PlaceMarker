@@ -1,107 +1,134 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { Text, View, StyleSheet, Pressable } from 'react-native';
+import {
+  Text,
+  View,
+  StyleSheet,
+  Pressable,
+  Linking,
+  ActivityIndicator,
+} from 'react-native';
 import MapView, {
   Marker,
   PROVIDER_GOOGLE,
   Circle,
-  Region,
+  Callout,
 } from 'react-native-maps';
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
-import { useAppStore } from '../stores/useLocationStore';
-
-const DEFAULT_REGION = {
-  latitude: 43.4549,
-  longitude: -80.4998,
-  latitudeDelta: 0.0922,
-  longitudeDelta: 0.0421,
-};
+import { useAppStore, Restaurant } from '../stores/useLocationStore';
+import { getDistance } from 'geolib';
 
 const MapScreen = () => {
-  // Store hooks
+  // Hooks
   const userLocation = useAppStore(state => state.userLocation);
-  const visibleRestaurants = useAppStore(state => state.visibleRestaurants);
   const savedRestaurants = useAppStore(state => state.savedRestaurants);
   const searchRadius = useAppStore(state => state.searchRadius);
   const currentRegion = useAppStore(state => state.currentRegion);
   const setCurrentRegion = useAppStore(state => state.setCurrentRegion);
-  const findNearbyRestaurants = useAppStore(
-    state => state.findNearbyRestaurants,
-  );
-  const requestLocationPermission = useAppStore(
-    state => state.requestLocationPermission,
-  );
+  const refreshUserLocation = useAppStore(state => state.refreshUserLocation);
 
   // Local state
   const mapRef = useRef<MapView>(null);
   const [mapIsReady, setMapIsReady] = useState(false);
-
-  // This hook returns true if the screen is focused, and false otherwise.
+  const [isFetchingLocation, setIsFetchingLocation] = useState(false);
   const isFocused = useIsFocused();
-
-  // Request location permission on focus
-  useFocusEffect(
-    useCallback(() => {
-      requestLocationPermission();
-      return () => setMapIsReady(false);
-    }, [requestLocationPermission]),
+  const [visibleRestaurants, setVisibleRestaurants] = useState<Restaurant[]>(
+    [],
   );
 
-  // This effect runs whenever the user's location or the list of saved
-  // restaurants changes. It ensures that the visible restaurants are always
-  // up-to-date without needing a manual button press.
-  useEffect(() => {
-    if (userLocation && savedRestaurants.length > 0) {
-      findNearbyRestaurants();
-    }
-  }, [userLocation, savedRestaurants, findNearbyRestaurants]);
+  // Request location permission and get initial location on focus
+  useFocusEffect(
+    useCallback(() => {
+      refreshUserLocation();
+      return () => setMapIsReady(false);
+    }, [refreshUserLocation]),
+  );
 
-  // Set initial region when user location is available
+  // Updates the list of visible restaurants based on the user's current location.
+  // Filters saved restaurants to include only those within the specified search radius.
+  useEffect(() => {
+    if (!userLocation) {
+      return;
+    }
+
+    const nearbyRestaurants = savedRestaurants.filter(restaurant => {
+      const distance = getDistance(userLocation, restaurant);
+      return distance <= searchRadius;
+    });
+
+    setVisibleRestaurants(nearbyRestaurants);
+  }, [userLocation, savedRestaurants, searchRadius]);
+
+  // When the user's location becomes available and no current map region is set,
+  // the map centers on the user's location on first load.
   useEffect(() => {
     if (userLocation && !currentRegion) {
       setCurrentRegion(userLocation);
     }
   }, [userLocation, currentRegion, setCurrentRegion]);
 
-  // Handlers
-  const goToCurrentPosition = () => {
-    if (userLocation && mapRef.current) {
-      mapRef.current.animateToRegion(userLocation, 1000);
+  // Animates the map to the user's current location.
+  const goToCurrentPosition = async () => {
+    try {
+      setIsFetchingLocation(true);
+      const lastKnownLocation = useAppStore.getState().userLocation;
+
+      if (lastKnownLocation && mapRef.current) {
+        mapRef.current.animateToRegion(lastKnownLocation, 500);
+      }
+
+      const success = await refreshUserLocation();
+      if (success) {
+        const updatedLocation = useAppStore.getState().userLocation;
+        if (updatedLocation && mapRef.current) {
+          mapRef.current.animateToRegion(updatedLocation, 1000);
+        }
+      }
+    } catch (error) {
+      console.warn('Error getting current location:', error);
+    } finally {
+      setIsFetchingLocation(false);
     }
   };
 
+  // Adjusts the map view to fit all visible restaurants and the user's location.
+  // Does nothing if there are no visible restaurants or the map reference is not ready.
   const handleFindRestaurants = () => {
-    findNearbyRestaurants();
+    if (mapRef.current && visibleRestaurants.length > 0) {
+      const coordinates = visibleRestaurants.map(r => ({
+        latitude: r.latitude,
+        longitude: r.longitude,
+      }));
 
-    // Fit map to show all visible restaurants after a short delay
-    setTimeout(() => {
-      if (mapRef.current && visibleRestaurants.length > 0) {
-        const coordinates = visibleRestaurants.map(r => ({
-          latitude: r.latitude,
-          longitude: r.longitude,
-        }));
-
-        if (userLocation) {
-          coordinates.push({
-            latitude: userLocation.latitude,
-            longitude: userLocation.longitude,
-          });
-        }
-
-        mapRef.current.fitToCoordinates(coordinates, {
-          edgePadding: { top: 100, right: 50, bottom: 150, left: 50 },
-          animated: true,
+      if (userLocation) {
+        coordinates.push({
+          latitude: userLocation.latitude,
+          longitude: userLocation.longitude,
         });
       }
-    }, 300);
+
+      mapRef.current.fitToCoordinates(coordinates, {
+        animated: true,
+      });
+    }
   };
 
-  const handleRegionChangeComplete = (region: Region) => {
-    setCurrentRegion(region);
+  //Used By the Marker Callout to Open in GoogleMaps in Android
+  const openInMaps = (
+    latitude: number,
+    longitude: number,
+    label: string = 'Location',
+  ) => {
+    const url = `geo:${latitude},${longitude}?q=${latitude},${longitude}(${encodeURIComponent(
+      label,
+    )})`;
+
+    Linking.openURL(url).catch(err => {
+      console.error('Failed to open map:', err);
+    });
   };
 
   const handleZoom = (factor: number) => {
     if (!currentRegion || !mapRef.current) return;
-
     const newRegion = {
       ...currentRegion,
       latitudeDelta: currentRegion.latitudeDelta * factor,
@@ -110,13 +137,19 @@ const MapScreen = () => {
     mapRef.current.animateToRegion(newRegion, 250);
   };
 
-  // Determine initial region
-  const initialRegion = currentRegion || userLocation || DEFAULT_REGION;
-
   // We only render the MapView if the screen is focused.
-  // Otherwise, we render an empty View.
+  // Something with rendering Markers when it is not focused.
   if (!isFocused) {
     return <View style={styles.container} />;
+  }
+
+  //Loading
+  if (!currentRegion) {
+    return (
+      <View style={[styles.container, styles.center]}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
   }
 
   return (
@@ -125,13 +158,12 @@ const MapScreen = () => {
         provider={PROVIDER_GOOGLE}
         style={styles.map}
         ref={mapRef}
-        initialRegion={initialRegion}
-        onRegionChangeComplete={handleRegionChangeComplete}
+        initialRegion={currentRegion}
+        onRegionChangeComplete={region => setCurrentRegion(region)}
         onMapReady={() => setMapIsReady(true)}
       >
         {mapIsReady && (
           <>
-            {/* Search radius circle */}
             {userLocation && (
               <>
                 <Circle
@@ -143,7 +175,6 @@ const MapScreen = () => {
                   strokeColor="rgba(0, 128, 0, 0.5)"
                   fillColor="rgba(0, 128, 0, 0.1)"
                 />
-                {/* Custom User Location Marker */}
                 <Marker
                   coordinate={{
                     latitude: userLocation.latitude,
@@ -154,11 +185,11 @@ const MapScreen = () => {
               </>
             )}
 
-            {/* Saved restaurants with always-visible titles */}
             {savedRestaurants.map(restaurant => {
               const isVisible = visibleRestaurants.some(
                 r => r.id === restaurant.id,
               );
+
               return (
                 <Marker
                   key={restaurant.id}
@@ -169,9 +200,7 @@ const MapScreen = () => {
                   anchor={{ x: 0.5, y: 1 }}
                 >
                   <View style={styles.customMarker}>
-                    <View style={styles.markerBubble}>
-                      <Text style={styles.markerText}>{restaurant.name}</Text>
-                    </View>
+                    <Text style={styles.markerText}>{restaurant.name}</Text>
                     <View
                       style={[
                         styles.markerPin,
@@ -179,18 +208,41 @@ const MapScreen = () => {
                       ]}
                     />
                   </View>
+
+                  <Callout
+                    onPress={() =>
+                      openInMaps(
+                        restaurant.latitude,
+                        restaurant.longitude,
+                        restaurant.name,
+                      )
+                    }
+                  >
+                    <View>
+                      <Text style={{ fontWeight: 'bold' }}>
+                        {restaurant.name}
+                      </Text>
+                      <Text>Open in Maps</Text>
+                    </View>
+                  </Callout>
                 </Marker>
               );
             })}
           </>
         )}
       </MapView>
-
-      {/* Action buttons */}
       {userLocation && (
         <View style={styles.buttonContainer}>
-          <Pressable style={styles.button} onPress={goToCurrentPosition}>
-            <Text style={styles.buttonText}>My Location</Text>
+          <Pressable
+            style={styles.button}
+            onPress={goToCurrentPosition}
+            disabled={isFetchingLocation}
+          >
+            {isFetchingLocation ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Text style={styles.buttonText}>My Location</Text>
+            )}
           </Pressable>
 
           <Pressable
@@ -202,7 +254,6 @@ const MapScreen = () => {
         </View>
       )}
 
-      {/* Zoom Controls */}
       <View style={styles.zoomControls}>
         <Pressable style={styles.zoomButton} onPress={() => handleZoom(0.5)}>
           <Text style={styles.zoomButtonText}>+</Text>
@@ -222,14 +273,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   map: {
-    ...StyleSheet.absoluteFillObject,
+    flex: 1,
   },
   buttonContainer: {
     position: 'absolute',
     bottom: 120,
     right: 20,
     flexDirection: 'column',
-    alignItems: 'flex-end',
   },
   button: {
     backgroundColor: '#388e3c',
@@ -241,6 +291,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
+    minWidth: 10,
   },
   findButton: {
     backgroundColor: '#007AFF',
@@ -275,30 +326,37 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333',
   },
-  // Styles for custom markers with always-visible titles
+
   customMarker: {
     alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'column',
   },
-  markerBubble: {
-    backgroundColor: 'white',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 10,
-    borderColor: '#555',
-    borderWidth: 1,
-  },
+
   markerText: {
+    backgroundColor: 'white',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    fontSize: 12,
     color: '#333',
     fontWeight: 'bold',
+    overflow: 'hidden',
+    marginBottom: 2,
   },
+
   markerPin: {
     width: 0,
     height: 0,
-    borderLeftWidth: 8,
-    borderRightWidth: 8,
-    borderTopWidth: 12,
+    borderLeftWidth: 6,
+    borderRightWidth: 6,
+    borderTopWidth: 10,
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
-    alignSelf: 'center',
+    borderTopColor: 'blue',
+  },
+  center: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

@@ -1,76 +1,104 @@
 /*
 ================================================================================
-|                                                                              |
-|   FILE: /stores/useLocationStore.ts                                          |
-|   DESC: Zustand store for managing restaurant and location state.            |
-|                                                                              |
+| FILE: /stores/useLocationStore.ts
+| DESC: Zustand store for managing restaurant and location state.
 ================================================================================
 */
 
 import { create } from 'zustand';
 import { Region } from 'react-native-maps';
 import { PermissionsAndroid, Platform } from 'react-native';
-import Geolocation from '@react-native-community/geolocation';
+import Geolocation, {
+  GeolocationResponse,
+  GeolocationError,
+} from '@react-native-community/geolocation';
 
-/**
- * @interface Restaurant
- * Defines the structure for a single restaurant object.
- */
-export interface Restaurant {
+export type Restaurant = {
   id: string;
   name: string;
   latitude: number;
   longitude: number;
-}
+};
 
-/**
- * @interface AppState
- * Defines the complete state and actions for the application store.
- */
 interface AppState {
-  // --- STATE ---
   userLocation: Region | null;
-  currentRegion: Region | null;
-  savedRestaurants: Restaurant[];      // All saved restaurants
-  visibleRestaurants: Restaurant[];    // Restaurants currently visible on map (within radius)
-  searchRadius: number;
+  refreshUserLocation: () => Promise<boolean>;
 
-  // --- ACTIONS ---
-  // Location
-  requestLocationPermission: () => Promise<void>;
+  currentRegion: Region | null;
   setCurrentRegion: (region: Region) => void;
-  
-  // Restaurant Management
+
+  savedRestaurants: Restaurant[];
   addRestaurant: (restaurant: Restaurant) => void;
   removeRestaurant: (restaurantId: string) => void;
-  toggleRestaurant: (restaurant: Restaurant) => void;
-  clearAllRestaurants: () => void;
-  
-  // Search
-  findNearbyRestaurants: () => void;
+
+  searchRadius: number;
   setSearchRadius: (radius: number) => void;
 }
 
-/**
- * Calculate distance between two coordinates in meters
- */
-const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
-  const R = 6371e3; // Earth's radius in meters
-  const φ1 = (lat1 * Math.PI) / 180;
-  const φ2 = (lat2 * Math.PI) / 180;
-  const Δφ = ((lat2 - lat1) * Math.PI) / 180;
-  const Δλ = ((lon2 - lon1) * Math.PI) / 180;
-  
-  const a =
-    Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  
-  return R * c;
-};
+// Zustand Implementation
+export const useAppStore = create<AppState>((set, get) => ({
+  userLocation: null,
+  currentRegion: null,
+  savedRestaurants: [],
+  searchRadius: 5000,
+
+  /**
+   * Set Current Area of View (Region) for MapView
+   */
+  setCurrentRegion: (region: Region) => set({ currentRegion: region }),
+
+  /**
+   * Asynchronously requests location permission (on Android) and fetches the user's current GPS coordinates.
+   * It updates the `userLocation` in the store on success.
+   * @returns {Promise<boolean>} A promise that resolves to `true` if the location was successfully fetched, and `false` otherwise.
+   */
+  refreshUserLocation: async () => {
+    try {
+      if (Platform.OS === 'android') {
+        const hasPermission = await requestAndroidLocationPermission();
+        if (!hasPermission) {
+          console.warn('Location permission denied');
+          return false;
+        }
+      }
+      const location = await getCurrentPosition();
+      set({ userLocation: location });
+      return true;
+    } catch (error) {
+      console.warn('Error getting user location:', error);
+      return false;
+    }
+  },
+
+  /**
+   * Add Unique Restaurant to Saved Restaurants
+   */
+  addRestaurant: (restaurant: Restaurant) =>
+    set(state => {
+      if (state.savedRestaurants.some(r => r.id === restaurant.id)) {
+        return state;
+      }
+      return {
+        savedRestaurants: [...state.savedRestaurants, restaurant],
+      };
+    }),
+
+  /**
+   * Remove Restaurant to Saved Restaurants
+   */
+  removeRestaurant: (restaurantId: string) =>
+    set(state => ({
+      savedRestaurants: state.savedRestaurants.filter(
+        r => r.id !== restaurantId,
+      ),
+    })),
+
+  setSearchRadius: (radius: number) => set({ searchRadius: radius }),
+}));
 
 /**
- * Request location permission on Android
+ * Helper Function to prompt the user for location permission on Android devices.
+ * @returns {Promise<boolean>} A promise, `true` if the user grants permission, and `false` if they deny it or an error occurs.
  */
 const requestAndroidLocationPermission = async (): Promise<boolean> => {
   try {
@@ -78,11 +106,11 @@ const requestAndroidLocationPermission = async (): Promise<boolean> => {
       PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
       {
         title: 'Location Permission',
-        message: 'This app needs access to your location to find nearby restaurants.',
-        buttonNeutral: 'Ask Me Later',
+        message:
+          'This app needs access to your location to find nearby restaurants.',
         buttonNegative: 'Cancel',
         buttonPositive: 'OK',
-      }
+      },
     );
     return granted === PermissionsAndroid.RESULTS.GRANTED;
   } catch (err) {
@@ -92,12 +120,14 @@ const requestAndroidLocationPermission = async (): Promise<boolean> => {
 };
 
 /**
- * Get current device position
+ * A Promise for the Geolocation.getCurrentPosition API.
+ * @returns {Promise<Region>} A promise that resolves with a `Region` object containing the user's current coordinates and a default zoom level, or rejects with a GeolocationError if it fails.
  */
+
 const getCurrentPosition = (): Promise<Region> => {
   return new Promise((resolve, reject) => {
     Geolocation.getCurrentPosition(
-      position => {
+      (position: GeolocationResponse) => {
         const { latitude, longitude } = position.coords;
         resolve({
           latitude,
@@ -106,109 +136,12 @@ const getCurrentPosition = (): Promise<Region> => {
           longitudeDelta: 0.0922,
         });
       },
-      error => reject(error),
-      { 
-        enableHighAccuracy: true, 
-        timeout: 15000, 
-        maximumAge: 10000 
-      }
+      (error: GeolocationError) => reject(error),
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 10000,
+      },
     );
   });
 };
-
-/**
- * Zustand store implementation
- */
-export const useAppStore = create<AppState>((set, get) => ({
-  // --- INITIAL STATE ---
-  userLocation: null,
-  currentRegion: null,
-  savedRestaurants: [],
-  visibleRestaurants: [],
-  searchRadius: 5000, // 5km default
-
-  // --- LOCATION ACTIONS ---
-  setCurrentRegion: (region: Region) => set({ currentRegion: region }),
-  
-  requestLocationPermission: async () => {
-    try {
-      // Check Android permissions
-      if (Platform.OS === 'android') {
-        const hasPermission = await requestAndroidLocationPermission();
-        if (!hasPermission) {
-          console.log('Location permission denied');
-          return;
-        }
-      }
-
-      // Get current position
-      const location = await getCurrentPosition();
-      set({ userLocation: location });
-      
-    } catch (error) {
-      console.warn('Geolocation error:', error);
-    }
-  },
-
-  // --- RESTAURANT MANAGEMENT ---
-  addRestaurant: (restaurant: Restaurant) =>
-    set(state => {
-      // Prevent duplicates
-      if (state.savedRestaurants.some(r => r.id === restaurant.id)) {
-        return state;
-      }
-      
-      // Return new state with the added restaurant
-      return {
-        savedRestaurants: [...state.savedRestaurants, restaurant],
-      };
-    }),
-
-  removeRestaurant: (restaurantId: string) =>
-    set(state => ({
-      savedRestaurants: state.savedRestaurants.filter(r => r.id !== restaurantId),
-      visibleRestaurants: state.visibleRestaurants.filter(r => r.id !== restaurantId),
-    })),
-
-  toggleRestaurant: (restaurant: Restaurant) => {
-    const { savedRestaurants, addRestaurant, removeRestaurant } = get();
-    const isSelected = savedRestaurants.some(r => r.id === restaurant.id);
-    
-    if (isSelected) {
-      removeRestaurant(restaurant.id);
-    } else {
-      addRestaurant(restaurant);
-    }
-  },
-
-  clearAllRestaurants: () => set({
-    savedRestaurants: [],
-    visibleRestaurants: [],
-  }),
-
-  // --- SEARCH FUNCTIONALITY ---
-  setSearchRadius: (radius: number) => set({ searchRadius: radius }),
-  
-  findNearbyRestaurants: () => {
-    const { userLocation, searchRadius, savedRestaurants } = get();
-    
-    if (!userLocation) {
-      console.warn('Current location not available for search.');
-      return;
-    }
-
-    // Filter saved restaurants by distance
-    const nearbyRestaurants = savedRestaurants.filter(restaurant => {
-      const distance = getDistance(
-        userLocation.latitude,
-        userLocation.longitude,
-        restaurant.latitude,
-        restaurant.longitude
-      );
-      return distance <= searchRadius;
-    });
-
-    // Update visible restaurants
-    set({ visibleRestaurants: nearbyRestaurants });
-  },
-}));

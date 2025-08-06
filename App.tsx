@@ -7,22 +7,20 @@ import HomeScreen from './screens/HomeScreen';
 import AboutScreen from './screens/AboutScreen';
 import ContactScreen from './screens/ContactUsScreen';
 
-const Drawer = createDrawerNavigator(); 
+const Drawer = createDrawerNavigator();
 const App = () => {
   return (
     <NavigationContainer>
       <Drawer.Navigator
         initialRouteName="Home"
         screenOptions={{
-          headerShown: true,
           headerStyle: styles.header,
-          headerTintColor: colors.white,
+          headerTintColor: 'white',
           drawerStyle: styles.drawer,
-          drawerActiveTintColor: colors.activeDrawerItem,
-          drawerInactiveTintColor: colors.inactiveDrawerItem,
+          drawerActiveTintColor: 'white',
+          drawerInactiveTintColor: 'rgba(255, 255, 255, 1)',
           headerTitle: 'PlaceMarker',
           headerTitleAlign: 'center',
-          headerRight: () => <View />,
         }}
       >
         <Drawer.Screen
@@ -72,19 +70,12 @@ const App = () => {
   );
 };
 
-const colors = {
-  primary: 'green',
-  white: '#fff',
-  activeDrawerItem: '#fff',
-  inactiveDrawerItem: 'rgba(255, 255, 255, 0.75)',
-};
-
 const styles = StyleSheet.create({
   header: {
-    backgroundColor: colors.primary,
+    backgroundColor: 'green',
   },
   drawer: {
-    backgroundColor: colors.primary,
+    backgroundColor: 'rgba(0, 128, 0, .3)',
   },
 });
 
