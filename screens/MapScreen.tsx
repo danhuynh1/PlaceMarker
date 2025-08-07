@@ -14,8 +14,9 @@ import MapView, {
   Callout,
 } from 'react-native-maps';
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
-import { useAppStore, Restaurant } from '../stores/useLocationStore';
+import { useAppStore} from '../stores/useLocationStore';
 import { getDistance } from 'geolib';
+import { Restaurant } from '../types/restaurantType';
 
 const MapScreen = () => {
   // Hooks
