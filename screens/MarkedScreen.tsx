@@ -3,13 +3,15 @@ import React from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable } from 'react-native';
 import { useAppStore } from '../stores/useLocationStore';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Restaurant } from '../types/restaurantType';
+import { deleteMarkedPlaceDB } from '../db/database';
 
-const MarkedScreen = ({ navigation }) => {
+const MarkedScreen = ({ navigation } : {navigation : any}) => {
   const savedRestaurants = useAppStore(state => state.savedRestaurants);
   const removeSelectedRestaurant = useAppStore(state => state.removeRestaurant);
   const setCurrentRegion = useAppStore(state => state.setCurrentRegion);
 
-  const handleViewOnMap = restaurant => {
+  const handleViewOnMap = (restaurant: Restaurant) => {
     const region = {
       latitude: restaurant.latitude,
       longitude: restaurant.longitude,
@@ -20,7 +22,7 @@ const MarkedScreen = ({ navigation }) => {
     navigation.navigate('Map');
   };
 
-  const renderRestaurantItem = ({ item }) => (
+  const renderRestaurantItem = ({ item }: { item: Restaurant }) => (
     <Pressable
       onPress={() => handleViewOnMap(item)}
       style={styles.itemContainer}
@@ -37,6 +39,7 @@ const MarkedScreen = ({ navigation }) => {
         onPress={e => {
           e.stopPropagation(); // Prevents navigating to map when removing
           removeSelectedRestaurant(item.id);
+          deleteMarkedPlaceDB(item.id);
         }}
         style={styles.removeButton}
       >

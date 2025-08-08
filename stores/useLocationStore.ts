@@ -13,13 +13,7 @@ import Geolocation, {
   GeolocationError,
 } from '@react-native-community/geolocation';
 
-export type Restaurant = {
-  id: string;
-  name: string;
-  latitude: number;
-  longitude: number;
-  address: string;
-};
+import { Restaurant } from '../types/restaurantType';
 
 interface AppState {
   userLocation: Region | null;
@@ -34,10 +28,11 @@ interface AppState {
 
   searchRadius: number;
   setSearchRadius: (radius: number) => void;
+  setSavedState: (restaurants: Restaurant[]) => void;
 }
 
 // Zustand Implementation
-export const useAppStore = create<AppState>((set, get) => ({
+export const useAppStore = create<AppState>((set) => ({
   userLocation: null,
   currentRegion: null,
   savedRestaurants: [],
@@ -95,6 +90,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     })),
 
   setSearchRadius: (radius: number) => set({ searchRadius: radius }),
+  setSavedState : (restaurants: Restaurant[]) => set({savedRestaurants:restaurants})
 }));
 
 /**

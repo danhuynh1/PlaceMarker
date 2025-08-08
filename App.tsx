@@ -1,14 +1,21 @@
-import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import React, { useEffect } from 'react';
+import { StyleSheet} from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import HomeScreen from './screens/HomeScreen';
 import AboutScreen from './screens/AboutScreen';
 import ContactScreen from './screens/ContactUsScreen';
+import { createTables, fetchMarkedPlacesDB } from './db/database';
+import { useAppStore } from './stores/useLocationStore';
 
 const Drawer = createDrawerNavigator();
 const App = () => {
+  const setSavedRestaurants = useAppStore(state => state.setSavedState);
+  useEffect(() => {
+    createTables();
+    fetchMarkedPlacesDB(data => setSavedRestaurants(data));
+  });
   return (
     <NavigationContainer>
       <Drawer.Navigator

@@ -4,7 +4,7 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import FavouritesScreen from './MarkedScreen';
 import MapScreen from './MapScreen';
 import ProfileScreen from './SearchScreen';
-import { StyleSheet, Platform } from 'react-native';
+import { StyleSheet} from 'react-native';
 
 const Tab = createBottomTabNavigator();
 /**

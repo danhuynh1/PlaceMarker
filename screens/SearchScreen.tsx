@@ -14,6 +14,8 @@ import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplet
 import { useNavigation } from '@react-navigation/native';
 import { GOOGLE_MAPS_API_KEY } from '@env';
 import { useAppStore } from '../stores/useLocationStore';
+import { insertMarkedPlaceDB } from '../db/database';
+import { Restaurant } from '../types/restaurantType';
 
 const SearchScreen = () => {
   const navigation = useNavigation();
@@ -27,7 +29,7 @@ const SearchScreen = () => {
 
   const handleAddPlace = () => {
     if (!selectedPlace) return;
-    const restaurant = {
+    const restaurant : Restaurant = {
       id: selectedPlace.id,
       name: selectedPlace.name,
       latitude: selectedPlace.latitude,
@@ -35,6 +37,8 @@ const SearchScreen = () => {
       address: selectedPlace.address,
     };
     addNewRestaurant(restaurant);
+    console.log('Saving info into db...')
+    insertMarkedPlaceDB({...restaurant}, () => navigation.goBack());
     setSelectedPlace(null);
     setNearbyRestaurants([]);
     clearAll();
@@ -130,7 +134,7 @@ const SearchScreen = () => {
         }}
         query={{
           key: GOOGLE_MAPS_API_KEY,
-
+          
           language: 'en',
         }}
         GooglePlacesSearchQuery={{
