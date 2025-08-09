@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Image,
   View,
@@ -8,7 +8,10 @@ import {
   ScrollView,
   FlatList,
   ActivityIndicator,
-  SafeAreaView, // Import SafeAreaView
+  SafeAreaView,
+  TextInput,
+  Button,
+  Alert
 } from 'react-native';
 import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplete';
 import { useNavigation } from '@react-navigation/native';
@@ -16,6 +19,8 @@ import { GOOGLE_MAPS_API_KEY } from '@env';
 import { useAppStore } from '../stores/useLocationStore';
 import { insertMarkedPlaceDB } from '../db/database';
 import { Restaurant } from '../types/restaurantType';
+import { db } from '../db/firebaseConfig';
+import { ref, push, get, update } from 'firebase/database';
 
 const SearchScreen = () => {
   const navigation = useNavigation();
@@ -26,6 +31,45 @@ const SearchScreen = () => {
   const [nearbyRestaurants, setNearbyRestaurants] = useState<any[]>([]);
   const [loadingNearby, setLoadingNearby] = useState(false);
   const [hasSearched, setHasSearched] = useState(false); // Track if a search has been performed
+  const [placeNote, setPlaceNote] = useState("");
+
+  useEffect(() => {
+  async function fetchNote() {
+    if (!selectedPlace?.id) {
+      setPlaceNote('');
+      return;
+    }
+
+    try {
+      const placeNotesRef = ref(db, 'placeNotes');
+      const snapshot = await get(placeNotesRef);
+
+      if (snapshot.exists()) {
+        const allNotes: Record<string, { placeId?: string; note?: string }> = snapshot.val();
+
+        // Find first matching note
+        const matchedEntry = Object.entries(allNotes).find(
+          ([, value]) => value.placeId === selectedPlace.id
+        );
+
+        if (matchedEntry) {
+          const [, placeData] = matchedEntry;
+          setPlaceNote(placeData.note || '');
+        } else {
+          setPlaceNote('');
+        }
+      } else {
+        setPlaceNote('');
+      }
+    } catch (error) {
+      console.error('Failed to fetch note:', error);
+      setPlaceNote('');
+    }
+  }
+
+  fetchNote();
+}, [selectedPlace]);
+
 
   const handleAddPlace = () => {
     if (!selectedPlace) return;
@@ -88,6 +132,45 @@ const SearchScreen = () => {
       setNearbyRestaurants([]);
     } catch (error) {
       console.error('Failed to fetch place details:', error);
+    }
+  };
+
+  const handleSaveNote = async () => {
+    try {
+      if (placeNote.trim() && selectedPlace.id) {
+        const newData = {
+          placeId: selectedPlace.id,
+          note: placeNote
+        }
+        const snapshot = await get(ref(db, 'placeNotes'));
+  
+        if (snapshot.exists()) {
+          const allNotes:any = snapshot.val();
+          // Filter entries matching selectedPlace.id
+          const matchedNotes = Object.entries(allNotes).filter(
+            ([, value]) => (value as { placeId?: string }).placeId === selectedPlace.id
+          );
+          if (matchedNotes.length > 0){
+            const updates: Record<string, any> = {};
+            matchedNotes.forEach(([key]) => {
+              updates[`${key}/note`] = newData.note;
+            });
+            await update(ref(db, 'placeNotes'), updates);
+          }
+          else {
+            await push(ref(db, 'placeNotes'), newData);
+          }
+        }
+        else {
+          await push(ref(db, 'placeNotes'), newData);
+        }
+        Alert.alert("Note saved successfully!")
+      } else {
+        Alert.alert("Error in saving the note, please make sure you have entered a valid note and selected a valid place.");
+      }
+    }
+    catch(error) {
+      console.log(error);
     }
   };
 
@@ -244,6 +327,18 @@ const SearchScreen = () => {
       <Pressable style={styles.button} onPress={handleAddPlace}>
         <Text style={styles.buttonText}>Mark this Place</Text>
       </Pressable>
+      <View>
+        <Text style={styles.titleText}>Add/Edit note:</Text>
+        <TextInput
+        style={styles.textArea}
+        value = {placeNote}
+        onChangeText={setPlaceNote}
+        placeholder="Enter your notes here and press save..."
+        multiline={true}
+        numberOfLines={4} // optional, sets initial height
+        />
+        <Button title="Save" onPress={handleSaveNote}/>
+      </View>
     </ScrollView>
   );
 
@@ -371,4 +466,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 24,
   },
+  textArea: {
+    height: 120,
+    borderColor: "gray",
+    borderWidth: 1,
+    padding: 10,
+    textAlignVertical: "top", // important for Android so text starts at the top
+  },
+  titleText: {
+    fontSize: 16,
+    fontWeight: "bold",
+  }
 });
