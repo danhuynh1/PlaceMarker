@@ -1,3 +1,9 @@
+/*
+================================================================================
+| FILE: App.tsx
+| DESC: App Entrypoint
+================================================================================
+*/
 import React, { useEffect } from 'react';
 import { StyleSheet} from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
@@ -12,12 +18,14 @@ import { useAppStore } from './stores/useLocationStore';
 const Drawer = createDrawerNavigator();
 const App = () => {
   const setSavedRestaurants = useAppStore(state => state.setSavedState);
+  // Initizializes sqllite database
   useEffect(() => {
     createTables();
     fetchMarkedPlacesDB(data => setSavedRestaurants(data));
   });
   return (
     <NavigationContainer>
+      {/* Drawer navigation */}
       <Drawer.Navigator
         initialRouteName="Home"
         screenOptions={{

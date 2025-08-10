@@ -1,16 +1,62 @@
-// MarkedScreen.tsx
-import React from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable } from 'react-native';
+/*
+================================================================================
+| FILE: /screen/MarkedScreen.tsx
+| DESC: Displayes all marked restaurants
+================================================================================
+*/
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, FlatList, Pressable, Modal, ScrollView } from 'react-native';
 import { useAppStore } from '../stores/useLocationStore';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Restaurant } from '../types/restaurantType';
 import { deleteMarkedPlaceDB } from '../db/database';
+import { ref, get } from 'firebase/database';
+import { db, auth } from '../db/firebaseConfig';
+import { signInAnonymously } from 'firebase/auth';
 
 const MarkedScreen = ({ navigation } : {navigation : any}) => {
   const savedRestaurants = useAppStore(state => state.savedRestaurants);
   const removeSelectedRestaurant = useAppStore(state => state.removeRestaurant);
   const setCurrentRegion = useAppStore(state => state.setCurrentRegion);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedNote, setSelectedNote] = useState<string | null>(null);
 
+  // Retrieves from firebase notes added by the user
+  const fetchNoteForPlace = async (placeId: string) => {
+    try {
+      if (!auth.currentUser) {
+        // Anonymous sign in if no user
+        await signInAnonymously(auth);
+      }
+      const uid = auth.currentUser?.uid;
+      if (!uid) {
+        setSelectedNote("No user logged in");
+        setModalVisible(true);
+        return;
+      }
+      
+      const snapshot = await get(ref(db, 'placeNotes'));
+      if (snapshot.exists()) {
+        const allNotes:any = snapshot.val();
+        const matchedNotes = Object.values(allNotes).filter(
+          (note: any) => note.placeId === placeId && note.uid === uid
+        );
+        if (matchedNotes.length > 0) {
+          setSelectedNote(matchedNotes[0].note);
+        } else {
+          setSelectedNote("No notes found for this place.");
+        }
+      } else {
+        setSelectedNote("No notes found.");
+      }
+    } catch (error) {
+      setSelectedNote("Error fetching note.");
+      console.error(error);
+    }
+    setModalVisible(true);
+  };
+
+  // Handles for setting current region
   const handleViewOnMap = (restaurant: Restaurant) => {
     const region = {
       latitude: restaurant.latitude,
@@ -22,29 +68,39 @@ const MarkedScreen = ({ navigation } : {navigation : any}) => {
     navigation.navigate('Map');
   };
 
+  // This is every item in the flatlist
   const renderRestaurantItem = ({ item }: { item: Restaurant }) => (
     <Pressable
       onPress={() => handleViewOnMap(item)}
       style={styles.itemContainer}
     >
-      {/* View to group text content vertically */}
       <View style={styles.itemTextContainer}>
         <Text style={styles.itemName}>{item.name}</Text>
-        {/* Added address field with its own style */}
         <Text style={styles.itemAddress}>{item.address}</Text>
       </View>
 
-      {/* Separate Pressable for the remove button */}
-      <Pressable
-        onPress={e => {
-          e.stopPropagation(); // Prevents navigating to map when removing
-          removeSelectedRestaurant(item.id);
-          deleteMarkedPlaceDB(item.id);
-        }}
-        style={styles.removeButton}
-      >
-        <Text style={styles.removeButtonText}>Remove</Text>
-      </Pressable>
+      <View style={{ flexDirection: 'row', gap: 8 }}>
+        <Pressable
+          onPress={e => {
+            e.stopPropagation();
+            removeSelectedRestaurant(item.id);
+            deleteMarkedPlaceDB(item.id);
+          }}
+          style={styles.removeButton}
+        >
+          <Text style={styles.removeButtonText}>Remove</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={e => {
+            e.stopPropagation();
+            fetchNoteForPlace(item.id);
+          }}
+          style={styles.viewNoteButton}
+        >
+          <Text style={styles.viewNoteButtonText}>View Note</Text>
+        </Pressable>
+      </View>
     </Pressable>
   );
 
@@ -67,6 +123,27 @@ const MarkedScreen = ({ navigation } : {navigation : any}) => {
           </View>
         )}
       </View>
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalBackground}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>Note</Text>
+            <ScrollView style={styles.modalContent}>
+              <Text>{selectedNote}</Text>
+            </ScrollView>
+            <Pressable
+              style={styles.modalCloseButton}
+              onPress={() => setModalVisible(false)}
+            >
+              <Text style={styles.modalCloseButtonText}>Close</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -74,7 +151,7 @@ const MarkedScreen = ({ navigation } : {navigation : any}) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f9f9f9', // A slightly off-white background
+    backgroundColor: '#f9f9f9',
   },
   container: {
     flex: 1,
@@ -99,11 +176,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 16,
     marginBottom: 7,
-    // shadowColor: '#000',
-    // elevation: 3,
   },
   itemTextContainer: {
-    flex: 1, // Allows this container to grow and push the button to the right
+    flex: 1,
     marginRight: 10,
   },
   itemName: {
@@ -123,7 +198,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   removeButtonText: {
-    color: '#ef4444', // A matching red text color
+    color: '#ef4444', 
     fontWeight: '600',
     fontSize: 12,
   },
@@ -131,12 +206,56 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingBottom: 50, // Offset from the center a bit
+    paddingBottom: 50, 
   },
   emptyText: {
     fontSize: 16,
     color: '#888',
     textAlign: 'center',
+  },
+    viewNoteButton: {
+    backgroundColor: '#cce5ff',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  viewNoteButtonText: {
+    color: '#004085',
+    fontWeight: '600',
+    fontSize: 12,
+  },
+  modalBackground: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContainer: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 20,
+    width: '100%',
+    maxHeight: '70%',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 12,
+  },
+  modalContent: {
+    marginBottom: 20,
+  },
+  modalCloseButton: {
+    backgroundColor: '#388e3c',
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  modalCloseButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 16,
   },
 });
 

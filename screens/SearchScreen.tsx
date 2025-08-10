@@ -1,3 +1,9 @@
+/*
+================================================================================
+| FILE: /screen/SearchScreen.tsx
+| DESC: Searches nearby places and add/edit notes
+================================================================================
+*/
 import React, { useEffect, useState } from 'react';
 import {
   Image,
@@ -19,58 +25,70 @@ import { GOOGLE_MAPS_API_KEY } from '@env';
 import { useAppStore } from '../stores/useLocationStore';
 import { insertMarkedPlaceDB } from '../db/database';
 import { Restaurant } from '../types/restaurantType';
-import { db } from '../db/firebaseConfig';
+import { auth, db } from '../db/firebaseConfig';
 import { ref, push, get, update } from 'firebase/database';
+import { signInAnonymously } from 'firebase/auth';
 
 const SearchScreen = () => {
   const navigation = useNavigation();
   const addNewRestaurant = useAppStore(state => state.addRestaurant);
   const userLocation = useAppStore(state => state.userLocation);
+  const searchRadius = useAppStore(state => state.searchRadius);
 
   const [selectedPlace, setSelectedPlace] = useState<any | null>(null);
   const [nearbyRestaurants, setNearbyRestaurants] = useState<any[]>([]);
   const [loadingNearby, setLoadingNearby] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false); // Track if a search has been performed
+  const [hasSearched, setHasSearched] = useState(false);
   const [placeNote, setPlaceNote] = useState("");
 
+  // it gets called when the place note changes
   useEffect(() => {
-  async function fetchNote() {
-    if (!selectedPlace?.id) {
-      setPlaceNote('');
-      return;
-    }
+    async function fetchNote() {
+      if (!selectedPlace?.id) {
+        setPlaceNote('');
+        return;
+      }
+      try {
+        // Ensure user is signed in (anonymous if no login)
+        if (!auth.currentUser) {
+          await signInAnonymously(auth);
+        }
+        const uid = auth.currentUser?.uid;
+        if (!uid) {
+          setPlaceNote('');
+          return;
+        }
+        const placeNotesRef = ref(db, 'placeNotes');
+        const snapshot = await get(placeNotesRef);
 
-    try {
-      const placeNotesRef = ref(db, 'placeNotes');
-      const snapshot = await get(placeNotesRef);
+        if (snapshot.exists()) {
+          const allNotes: any = snapshot.val();
 
-      if (snapshot.exists()) {
-        const allNotes: Record<string, { placeId?: string; note?: string }> = snapshot.val();
+          // Filter for BOTH current user & selected place
+          const matchedPlaceNotes = Object.entries(allNotes).filter(
+            ([, value]) =>
+              (value as { placeId?: string; uid?: string }).placeId === selectedPlace.id &&
+              (value as { placeId?: string; uid?: string }).uid === uid
+          );
 
-        // Find first matching note
-        const matchedEntry = Object.entries(allNotes).find(
-          ([, value]) => value.placeId === selectedPlace.id
-        );
-
-        if (matchedEntry) {
-          const [, placeData] = matchedEntry;
-          setPlaceNote(placeData.note || '');
+          if (matchedPlaceNotes.length > 0) {
+            const [, placeData] = matchedPlaceNotes[0]; // First match
+            setPlaceNote((placeData as { note?: string }).note || '');
+          } else {
+            setPlaceNote('');
+          }
         } else {
           setPlaceNote('');
         }
-      } else {
+      } catch (error) {
+        console.error('Failed to fetch note:', error);
         setPlaceNote('');
       }
-    } catch (error) {
-      console.error('Failed to fetch note:', error);
-      setPlaceNote('');
     }
-  }
+    fetchNote();
+  }, [selectedPlace]);
 
-  fetchNote();
-}, [selectedPlace]);
-
-
+  // For adding marked place to the zustand store nad sqllite database
   const handleAddPlace = () => {
     if (!selectedPlace) return;
     const restaurant : Restaurant = {
@@ -88,13 +106,14 @@ const SearchScreen = () => {
     clearAll();
   };
 
+  // helper function for fetching all the restaurants within radius
   const handleNearbySearch = async () => {
     if (!userLocation) return;
     setLoadingNearby(true);
     setHasSearched(true); // Mark that a search was initiated
     setSelectedPlace(null); // Clear any selected place
     try {
-      const radius = 1500; // meters
+      const radius = searchRadius;
       const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${userLocation.latitude},${userLocation.longitude}&radius=${radius}&type=restaurant&key=${GOOGLE_MAPS_API_KEY}`;
       const response = await fetch(url);
       const data = await response.json();
@@ -107,6 +126,7 @@ const SearchScreen = () => {
     }
   };
 
+  // helper function when a restaurant item is pressed to get its details with user added notes
   const handleSelectNearby = async (place: any) => {
     try {
       const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place.place_id}&fields=place_id,name,geometry,formatted_address,rating,user_ratings_total,photos&key=${GOOGLE_MAPS_API_KEY}`;
@@ -135,20 +155,34 @@ const SearchScreen = () => {
     }
   };
 
+  // For adding or editing notes by user
   const handleSaveNote = async () => {
     try {
+      // Ensure user is signed in (anonymous if no login)
+      if (!auth.currentUser) {
+        await signInAnonymously(auth);
+      }
+      const uid = auth.currentUser?.uid;
+      if (!uid) {
+        console.log("Unable to fetch uid");
+        Alert.alert("Unable to save notes");
+        return;
+      }
       if (placeNote.trim() && selectedPlace.id) {
         const newData = {
           placeId: selectedPlace.id,
-          note: placeNote
-        }
+          note: placeNote,
+          uid: uid
+        };
         const snapshot = await get(ref(db, 'placeNotes'));
   
         if (snapshot.exists()) {
           const allNotes:any = snapshot.val();
           // Filter entries matching selectedPlace.id
           const matchedNotes = Object.entries(allNotes).filter(
-            ([, value]) => (value as { placeId?: string }).placeId === selectedPlace.id
+            ([, value]) => 
+              (value as { placeId?: string; uid?: string }).placeId === selectedPlace.id &&
+              (value as { placeId?: string; uid?: string }).uid === uid
           );
           if (matchedNotes.length > 0){
             const updates: Record<string, any> = {};
@@ -300,6 +334,7 @@ const SearchScreen = () => {
     </>
   );
 
+  // This is the view for restaurant details
   const renderDetailsUI = () => (
     <ScrollView
       showsVerticalScrollIndicator={false}
@@ -345,6 +380,7 @@ const SearchScreen = () => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
+        {/* This decides whether the search view, nearny restaurant view, or restaurant detail view should be displayed */}
         {selectedPlace
           ? renderDetailsUI()
           : hasSearched
@@ -471,7 +507,7 @@ const styles = StyleSheet.create({
     borderColor: "gray",
     borderWidth: 1,
     padding: 10,
-    textAlignVertical: "top", // important for Android so text starts at the top
+    textAlignVertical: "top",
   },
   titleText: {
     fontSize: 16,

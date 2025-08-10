@@ -1,3 +1,8 @@
+/*
+================================================================================
+| FILE: /screen/HomeScreen.tsx
+================================================================================
+*/
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';

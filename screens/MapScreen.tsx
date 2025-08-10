@@ -1,3 +1,9 @@
+/*
+================================================================================
+| FILE: /screen/MapScrren.tsx
+| DESC: Displayes map UI, pointers for restaurants in location
+================================================================================
+*/
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   Text,
