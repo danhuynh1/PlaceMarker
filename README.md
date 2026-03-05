@@ -1,97 +1,127 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# PlaceMarker
 
-# Getting Started
+A cross-platform mobile app built with **React Native CLI** and **TypeScript** that lets you search, discover, bookmark, and annotate restaurants on an interactive map.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+---
 
-## Step 1: Start Metro
+## Features
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+- **Interactive Map** — Google Maps integration with custom restaurant markers, a search radius circle, and animated navigation to your current location
+- **Nearby Search** — Find restaurants around you using the Google Places API, filtered to a configurable search radius
+- **Place Autocomplete** — Search any restaurant by name with Google Places Autocomplete and view details including ratings and photos
+- **Bookmark Restaurants** — Mark places and view them on the map or in a saved list; bookmarks persist locally via SQLite
+- **Notes** — Add and edit personal notes per restaurant, stored in Firebase Realtime Database and tied to your anonymous user session
+- **Radius Filtering** — Markers on the map visually distinguish restaurants within your search radius vs. outside it
+- **Open in Maps** — Tap any map marker callout to open the location directly in Google Maps
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+---
 
-```sh
-# Using npm
-npm start
+## Tech Stack
 
-# OR using Yarn
-yarn start
+| Layer | Technology |
+|---|---|
+| Framework | React Native CLI, TypeScript |
+| Maps | Google Maps SDK (`react-native-maps`) |
+| Places | Google Places API (Nearby Search, Place Details, Autocomplete, Photos) |
+| Remote Storage | Firebase Realtime Database |
+| Auth | Firebase Anonymous Authentication |
+| Local Storage | SQLite (`react-native-sqlite-storage`) |
+| State Management | Zustand |
+| Navigation | React Navigation — Drawer + Bottom Tabs |
+| Location | `@react-native-community/geolocation`, `geolib` |
+
+---
+
+## App Structure
+
+```
+App.tsx                  # Entry point — Drawer navigation
+screens/
+  HomeScreen.tsx         # Bottom tab container (Map | Search | Marked)
+  MapScreen.tsx          # Interactive map with markers and radius circle
+  SearchScreen.tsx       # Place search, nearby results, detail view, notes
+  MarkedScreen.tsx       # Saved restaurant list with note viewer
+stores/
+  useLocationStore.ts    # Zustand store — location, restaurants, radius
+db/
+  database.ts            # SQLite helpers — create, insert, fetch, delete
+  firebaseConfig.ts      # Firebase initialization
 ```
 
-## Step 2: Build and run your app
+---
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
+## Screens
+
+### Map
+- Displays user location with a configurable radius circle
+- Shows all saved restaurants as custom markers with restaurant name labels
+- Green markers = within radius, blue = outside radius
+- Tap a marker to open a callout with a link to open in Google Maps
+- My Location and Find Restaurants buttons for quick navigation
+
+### Search
+- Google Places Autocomplete for searching any location
+- Find Restaurants Nearby button to fetch places within your radius
+- Tap a result to view details: name, address, rating, photo
+- Mark a place to save it locally
+- Add or edit a personal note per place — synced to Firebase
+
+### Marked
+- Lists all bookmarked restaurants with name and address
+- Tap any item to navigate the map to that location
+- View Note button to retrieve your saved Firebase note
+- Remove button to delete a bookmark locally
+
+---
+
+## Setup
+
+### Prerequisites
+- Node.js
+- React Native CLI environment (Android Studio / Xcode)
+- Google Maps API key with Maps SDK, Places API enabled
+- Firebase project with Realtime Database enabled
+
+### Install
+
+```bash
+git clone https://github.com/danhuynh1/PlaceMarker.git
+cd PlaceMarker
+npm install
+```
+
+### Environment
+
+Create a `.env` file in the root:
+
+```
+GOOGLE_MAPS_API_KEY=your_key_here
+```
 
 ### Android
 
-```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
+```bash
+npx react-native run-android
 ```
 
 ### iOS
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
-
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
-
-```sh
-bundle install
+```bash
+cd ios && pod install && cd ..
+npx react-native run-ios
 ```
 
-Then, and every time you update your native dependencies, run:
+---
 
-```sh
-bundle exec pod install
-```
+## Architecture Notes
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+- **Zustand** manages all global state — user location, saved restaurants, search radius, and current map region — keeping components clean and free of prop drilling
+- **SQLite** handles offline-first local persistence for bookmarked restaurants so saved places survive app restarts without a network call
+- **Firebase Realtime Database** stores per-user notes keyed by `placeId` and `uid`, using anonymous authentication so no sign-up is required
+- **React Navigation** uses a Drawer at the top level with Bottom Tabs nested inside the Home screen, allowing the map to persist its state while navigating between tabs
 
-```sh
-# Using npm
-npm run ios
+---
 
-# OR using Yarn
-yarn ios
-```
+## Author
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
-
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
-
-## Step 3: Modify your app
-
-Now that you have successfully run the app, let's make changes!
-
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
-
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
-
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
-
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+Dan Huynh — [github.com/danhuynh1](https://github.com/danhuynh1)
