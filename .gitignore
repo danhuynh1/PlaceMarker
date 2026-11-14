@@ -1,4 +1,5 @@
 .env
+server/.env
 
 # OSX
 #
@@ -40,6 +41,7 @@ local.properties
 # node.js
 #
 node_modules/
+.env
 npm-debug.log
 yarn-error.log
 

@@ -3,5 +3,8 @@ plugins { id("com.facebook.react.settings") }
 extensions.configure(com.facebook.react.ReactSettingsExtension){ ex -> ex.autolinkLibrariesFromCommand() }
 rootProject.name = 'InfoHub'
 include ':app'
-includeBuild('../node_modules/@react-native/gradle-plugin')
-    
+includeBuild('../node_modules/@react-native/gradle-plugin') 
+include ':react-native-sqlite-storage'
+project(':react-native-sqlite-storage').projectDir =
+    new File(rootProject.projectDir,
+        '../node_modules/react-native-sqlite-storage/platforms/android')

@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { StyleSheet} from 'react-native';
+import { StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -9,13 +9,26 @@ import ContactScreen from './screens/ContactUsScreen';
 import { createTables, fetchMarkedPlacesDB } from './db/database';
 import { useAppStore } from './stores/useLocationStore';
 
+import { NativeModules } from 'react-native';
+import SQLite from 'react-native-sqlite-storage';
+
+console.log('SQLite native module:', NativeModules.SQLite);
+console.log('SQLitePlugin:', NativeModules.SQLitePlugin);
+console.log('SQLite JS API:', SQLite);
+
+console.log(
+  'SQLite-related native modules:',
+  Object.keys(NativeModules).filter(name =>
+    name.toLowerCase().includes('sqlite'),
+  ),
+);
 const Drawer = createDrawerNavigator();
 const App = () => {
   const setSavedRestaurants = useAppStore(state => state.setSavedState);
   useEffect(() => {
     createTables();
     fetchMarkedPlacesDB(data => setSavedRestaurants(data));
-  });
+  }, [setSavedRestaurants]);
   return (
     <NavigationContainer>
       <Drawer.Navigator

@@ -1,179 +1,172 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  Image,
-  View,
-  Text,
-  StyleSheet,
-  Pressable,
-  ScrollView,
-  FlatList,
   ActivityIndicator,
-  SafeAreaView, // Import SafeAreaView
+  FlatList,
+  Image,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
-import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplete';
 import { useNavigation } from '@react-navigation/native';
-import { GOOGLE_MAPS_API_KEY } from '@env';
 import { useAppStore } from '../stores/useLocationStore';
 import { insertMarkedPlaceDB } from '../db/database';
 import { Restaurant } from '../types/restaurantType';
+import {
+  autocompletePlaces,
+  getPlaceDetails,
+  getPlacePhotoUrl,
+  searchNearbyRestaurants,
+  Place,
+  PlaceSuggestion,
+} from '../services/placesApi';
 
 const SearchScreen = () => {
   const navigation = useNavigation();
   const addNewRestaurant = useAppStore(state => state.addRestaurant);
   const userLocation = useAppStore(state => state.userLocation);
-
-  const [selectedPlace, setSelectedPlace] = useState<any | null>(null);
-  const [nearbyRestaurants, setNearbyRestaurants] = useState<any[]>([]);
+  const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
+  const [nearbyRestaurants, setNearbyRestaurants] = useState<Place[]>([]);
+  const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
+  const [query, setQuery] = useState('');
   const [loadingNearby, setLoadingNearby] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false); // Track if a search has been performed
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [hasSearched, setHasSearched] = useState(false);
+
+  useEffect(() => {
+    if (query.trim().length < 2 || selectedPlace) {
+      setSuggestions([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        setLoadingSuggestions(true);
+        const result = await autocompletePlaces(
+          query,
+          userLocation?.latitude,
+          userLocation?.longitude,
+        );
+        setSuggestions(result.suggestions);
+        setError(null);
+      } catch (requestError) {
+        setSuggestions([]);
+        setError(
+          requestError instanceof Error
+            ? requestError.message
+            : 'Search failed',
+        );
+      } finally {
+        setLoadingSuggestions(false);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [query, selectedPlace, userLocation]);
 
   const handleAddPlace = () => {
     if (!selectedPlace) return;
-    const restaurant : Restaurant = {
+    const restaurant: Restaurant = {
       id: selectedPlace.id,
       name: selectedPlace.name,
       latitude: selectedPlace.latitude,
       longitude: selectedPlace.longitude,
       address: selectedPlace.address,
     };
-    addNewRestaurant(restaurant);
-    console.log('Saving info into db...')
-    insertMarkedPlaceDB({...restaurant}, () => navigation.goBack());
-    setSelectedPlace(null);
-    setNearbyRestaurants([]);
-    clearAll();
+    insertMarkedPlaceDB(
+      restaurant,
+      () => {
+        addNewRestaurant(restaurant);
+        navigation.goBack();
+      },
+      message => setError(message),
+    );
   };
 
   const handleNearbySearch = async () => {
-    if (!userLocation) return;
+    if (!userLocation) {
+      setError('Your location is not available yet.');
+      return;
+    }
     setLoadingNearby(true);
-    setHasSearched(true); // Mark that a search was initiated
-    setSelectedPlace(null); // Clear any selected place
+    setHasSearched(true);
+    setSelectedPlace(null);
+    setError(null);
     try {
-      const radius = 1500; // meters
-      const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${userLocation.latitude},${userLocation.longitude}&radius=${radius}&type=restaurant&key=${GOOGLE_MAPS_API_KEY}`;
-      const response = await fetch(url);
-      const data = await response.json();
-      setNearbyRestaurants(data.results ?? []);
-    } catch (error) {
-      console.error('Nearby search failed:', error);
+      const result = await searchNearbyRestaurants(
+        userLocation.latitude,
+        userLocation.longitude,
+        1500,
+      );
+      setNearbyRestaurants(result.places);
+    } catch (requestError) {
       setNearbyRestaurants([]);
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Nearby search failed',
+      );
     } finally {
       setLoadingNearby(false);
     }
   };
 
-  const handleSelectNearby = async (place: any) => {
+  const handleSelectPlace = async (placeId: string) => {
     try {
-      const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place.place_id}&fields=place_id,name,geometry,formatted_address,rating,user_ratings_total,photos&key=${GOOGLE_MAPS_API_KEY}`;
-      const response = await fetch(url);
-      const data = await response.json();
-      const details = data.result;
-
-      const photoRef = details?.photos?.[0]?.photo_reference;
-      const photoUrl = photoRef
-        ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${photoRef}&key=${GOOGLE_MAPS_API_KEY}`
-        : null;
-
-      setSelectedPlace({
-        id: details.place_id,
-        name: details.name,
-        latitude: details.geometry.location.lat,
-        longitude: details.geometry.location.lng,
-        address: details.formatted_address,
-        rating: details.rating,
-        user_ratings_total: details.user_ratings_total,
-        photoUrl,
-      });
+      setError(null);
+      setSelectedPlace(await getPlaceDetails(placeId));
       setNearbyRestaurants([]);
-    } catch (error) {
-      console.error('Failed to fetch place details:', error);
+      setSuggestions([]);
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Unable to load place details',
+      );
     }
   };
 
-  // Clear all selections and search results
   const clearAll = () => {
     setSelectedPlace(null);
     setNearbyRestaurants([]);
+    setSuggestions([]);
+    setQuery('');
+    setError(null);
     setHasSearched(false);
   };
-  // Renders the main search UI
+
   const renderSearchUI = () => (
     <>
-      <GooglePlacesAutocomplete
-        placeholder="Search for a Location"
-        fetchDetails={true}
-        onPress={(data, details = null) => {
-          if (!details) return;
-
-          const photoRef = details.photos?.[0]?.photo_reference;
-
-          const photoUrl = photoRef
-            ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${photoRef}&key=${GOOGLE_MAPS_API_KEY}`
-            : null;
-
-          setSelectedPlace({
-            id: details.place_id,
-
-            name: details.name,
-
-            latitude: details.geometry.location.lat,
-
-            longitude: details.geometry.location.lng,
-
-            address: details.formatted_address,
-
-            rating: details.rating,
-
-            user_ratings_total: details.user_ratings_total,
-
-            photoUrl,
-          });
-
-          setNearbyRestaurants([]);
-        }}
-        query={{
-          key: GOOGLE_MAPS_API_KEY,
-          
-          language: 'en',
-        }}
-        GooglePlacesSearchQuery={{
-          rankby: 'distance',
-
-          type: 'restaurant',
-        }}
-        textInputProps={{
-          placeholderTextColor: '#A9A9A9',
-        }}
-        styles={{
-          container: { marginBottom: 12 },
-
-          textInput: styles.textInput,
-
-          // listView: styles.listView,
-        }}
-        minLength={2}
-        debounce={300}
-        keyboardShouldPersistTaps="handled"
-        enablePoweredByContainer={false}
-        nearbyPlacesAPI="GooglePlacesSearch"
-        onFail={error =>
-          console.error('Google Places Autocomplete Error:', error)
-        }
-        onTimeout={() =>
-          console.warn('Google Places Autocomplete: Request timed out')
-        }
-        predefinedPlaces={[]}
-        autoFillOnNotFound={false}
-        currentLocation={false}
-        disableScroll={false}
-        isRowScrollable={true}
-        listViewDisplayed="auto"
-        keepResultsAfterBlur={false}
-        predefinedPlacesAlwaysVisible={false}
-        suppressDefaultStyles={false}
-        timeout={20000}
+      <TextInput
+        value={query}
+        onChangeText={setQuery}
+        placeholder="Search for a restaurant"
+        placeholderTextColor="#A9A9A9"
+        style={styles.textInput}
+        autoCorrect={false}
       />
+      {loadingSuggestions && (
+        <ActivityIndicator style={styles.inlineLoader} color="#388e3c" />
+      )}
+      <FlatList
+        data={suggestions}
+        keyExtractor={item => item.placeId}
+        keyboardShouldPersistTaps="handled"
+        renderItem={({ item }) => (
+          <Pressable
+            style={styles.suggestionItem}
+            onPress={() => handleSelectPlace(item.placeId)}
+          >
+            <Text style={styles.name}>{item.primaryText}</Text>
+            {!!item.secondaryText && (
+              <Text style={styles.address}>{item.secondaryText}</Text>
+            )}
+          </Pressable>
+        )}
+      />
+      {!!error && <Text style={styles.errorText}>{error}</Text>}
       <Pressable style={styles.button} onPress={handleNearbySearch}>
         <Text style={styles.buttonText}>Find Restaurants Nearby</Text>
       </Pressable>
@@ -185,11 +178,10 @@ const SearchScreen = () => {
     </>
   );
 
-  // Renders the nearby results list
   const renderNearbyResultsUI = () => (
     <>
       <Pressable style={[styles.button, styles.clearButton]} onPress={clearAll}>
-        <Text style={[styles.buttonText, styles.clearButtonText]}>‹ Back</Text>
+        <Text style={[styles.buttonText, styles.clearButtonText]}>Back</Text>
       </Pressable>
       {loadingNearby ? (
         <ActivityIndicator
@@ -200,20 +192,26 @@ const SearchScreen = () => {
       ) : (
         <FlatList
           data={nearbyRestaurants}
-          keyExtractor={item => item.place_id}
+          keyExtractor={item => item.id}
           contentContainerStyle={{ paddingBottom: 20 }}
           keyboardShouldPersistTaps="handled"
+          ListEmptyComponent={
+            <Text style={styles.emptyListText}>
+              No restaurants found nearby.
+            </Text>
+          }
           renderItem={({ item }) => (
             <Pressable
               style={styles.nearbyItem}
-              onPress={() => handleSelectNearby(item)}
+              onPress={() => handleSelectPlace(item.id)}
             >
               <Text style={styles.name}>{item.name}</Text>
-              <Text style={styles.address}>{item.vicinity}</Text>
+              <Text style={styles.address}>{item.address}</Text>
             </Pressable>
           )}
         />
       )}
+      {!!error && <Text style={styles.errorText}>{error}</Text>}
     </>
   );
 
@@ -223,24 +221,24 @@ const SearchScreen = () => {
       contentContainerStyle={styles.detailsContainer}
     >
       <Pressable style={[styles.button, styles.clearButton]} onPress={clearAll}>
-        <Text style={[styles.buttonText, styles.clearButtonText]}>‹ Back</Text>
+        <Text style={[styles.buttonText, styles.clearButtonText]}>Back</Text>
       </Pressable>
-
-      <Text style={styles.detailsName}>{selectedPlace.name}</Text>
-      <Text style={styles.address}>{selectedPlace.address}</Text>
-      {selectedPlace.rating && (
+      <Text style={styles.detailsName}>{selectedPlace?.name}</Text>
+      <Text style={styles.address}>{selectedPlace?.address}</Text>
+      {selectedPlace?.rating !== undefined && (
         <Text style={styles.rating}>
-          ⭐ {selectedPlace.rating.toFixed(1)} (
-          {selectedPlace.user_ratings_total} reviews)
+          Rating {selectedPlace.rating.toFixed(1)} (
+          {selectedPlace.userRatingsTotal ?? 0} reviews)
         </Text>
       )}
-      {selectedPlace.photoUrl && (
+      {selectedPlace?.photoName && (
         <Image
-          source={{ uri: selectedPlace.photoUrl }}
+          source={{ uri: getPlacePhotoUrl(selectedPlace.photoName) }}
           style={styles.image}
           resizeMode="cover"
         />
       )}
+      {!!error && <Text style={styles.errorText}>{error}</Text>}
       <Pressable style={styles.button} onPress={handleAddPlace}>
         <Text style={styles.buttonText}>Mark this Place</Text>
       </Pressable>
@@ -263,19 +261,8 @@ const SearchScreen = () => {
 export default SearchScreen;
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  container: {
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 10,
-  },
-  searchContainer: {
-    flex: 0,
-    marginBottom: 16,
-  },
+  safeArea: { flex: 1, backgroundColor: '#fff' },
+  container: { flex: 1, paddingHorizontal: 16, paddingTop: 10 },
   textInput: {
     height: 50,
     borderRadius: 12,
@@ -284,18 +271,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     fontSize: 16,
     backgroundColor: '#f9f9f9',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  listView: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    marginTop: 8,
   },
   button: {
     backgroundColor: '#388e3c',
@@ -304,51 +279,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
     elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
   },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
+  buttonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
   clearButton: {
     backgroundColor: '#f0f0f0',
     borderWidth: 1,
     borderColor: '#ccc',
   },
-  clearButtonText: {
-    color: '#333',
-    fontWeight: '600',
-  },
+  clearButtonText: { color: '#333', fontWeight: '600' },
   nearbyItem: {
     paddingVertical: 16,
     borderBottomWidth: 1,
     borderColor: '#eee',
   },
-  name: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#333',
+  suggestionItem: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderColor: '#eee',
   },
-  detailsName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  address: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 4,
-    marginBottom: 8,
-  },
-  rating: {
-    fontSize: 15,
-    color: '#555',
-    marginVertical: 12,
-  },
+  name: { fontSize: 17, fontWeight: '600', color: '#333' },
+  detailsName: { fontSize: 24, fontWeight: 'bold', color: '#333' },
+  address: { fontSize: 14, color: '#666', marginTop: 4, marginBottom: 8 },
+  rating: { fontSize: 15, color: '#555', marginVertical: 12 },
   image: {
     width: '100%',
     height: 220,
@@ -356,9 +308,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     backgroundColor: '#f0f0f0',
   },
-  detailsContainer: {
-    paddingBottom: 40,
-  },
+  detailsContainer: { paddingBottom: 40 },
   emptyListContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -370,5 +320,8 @@ const styles = StyleSheet.create({
     color: '#888',
     fontSize: 16,
     lineHeight: 24,
+    padding: 16,
   },
+  inlineLoader: { marginVertical: 8 },
+  errorText: { color: '#b42318', textAlign: 'center', marginVertical: 10 },
 });

@@ -18,17 +18,17 @@ A cross-platform mobile app built with **React Native CLI** and **TypeScript** t
 
 ## Tech Stack
 
-| Layer | Technology |
-|---|---|
-| Framework | React Native CLI, TypeScript |
-| Maps | Google Maps SDK (`react-native-maps`) |
-| Places | Google Places API (Nearby Search, Place Details, Autocomplete, Photos) |
-| Remote Storage | Firebase Realtime Database |
-| Auth | Firebase Anonymous Authentication |
-| Local Storage | SQLite (`react-native-sqlite-storage`) |
-| State Management | Zustand |
-| Navigation | React Navigation — Drawer + Bottom Tabs |
-| Location | `@react-native-community/geolocation`, `geolib` |
+| Layer            | Technology                                                             |
+| ---------------- | ---------------------------------------------------------------------- |
+| Framework        | React Native CLI, TypeScript                                           |
+| Maps             | Google Maps SDK (`react-native-maps`)                                  |
+| Places           | Google Places API (Nearby Search, Place Details, Autocomplete, Photos) |
+| Remote Storage   | Firebase Realtime Database                                             |
+| Auth             | Firebase Anonymous Authentication                                      |
+| Local Storage    | SQLite (`react-native-sqlite-storage`)                                 |
+| State Management | Zustand                                                                |
+| Navigation       | React Navigation — Drawer + Bottom Tabs                                |
+| Location         | `@react-native-community/geolocation`, `geolib`                        |
 
 ---
 
@@ -53,6 +53,7 @@ db/
 ## Screens
 
 ### Map
+
 - Displays user location with a configurable radius circle
 - Shows all saved restaurants as custom markers with restaurant name labels
 - Green markers = within radius, blue = outside radius
@@ -60,6 +61,7 @@ db/
 - My Location and Find Restaurants buttons for quick navigation
 
 ### Search
+
 - Google Places Autocomplete for searching any location
 - Find Restaurants Nearby button to fetch places within your radius
 - Tap a result to view details: name, address, rating, photo
@@ -67,6 +69,7 @@ db/
 - Add or edit a personal note per place — synced to Firebase
 
 ### Marked
+
 - Lists all bookmarked restaurants with name and address
 - Tap any item to navigate the map to that location
 - View Note button to retrieve your saved Firebase note
@@ -77,6 +80,7 @@ db/
 ## Setup
 
 ### Prerequisites
+
 - Node.js
 - React Native CLI environment (Android Studio / Xcode)
 - Google Maps API key with Maps SDK, Places API enabled
@@ -92,11 +96,13 @@ npm install
 
 ### Environment
 
-Create a `.env` file in the root:
+Create `.env` from `.env.example` in the root. The key must allow both Maps SDK for Android and Places API (New):
 
 ```
-GOOGLE_MAPS_API_KEY=your_key_here
+GOOGLE_MAPS_API_KEY=your_google_api_key
 ```
+
+The React Native app calls Places API (New) directly. No separate server is required.
 
 ### Android
 

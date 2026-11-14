@@ -33,7 +33,7 @@ def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
 // --- This block correctly loads your .env file ---
 project.ext.env = [:]
-def envFile = rootProject.file(".env")
+def envFile = rootProject.file("../.env")
 if (envFile.exists()) {
     envFile.eachLine { line ->
         if (line.contains('=')) {
@@ -84,6 +84,8 @@ android {
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
+    implementation project(':react-native-sqlite-storage')
+
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
     } else {
